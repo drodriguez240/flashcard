@@ -36,11 +36,11 @@ impl App {
                 Event::Key(key) => match self.route {
                     Route::Review => self.pages.review.on_input(key, &mut self.db),
                     Route::AddCard => self.pages.add_card.on_input(key, &mut self.db),
-                    Route::EditCard => self.pages.edit_card.on_input(key, &mut self.db),
+                    Route::EditCard(_) => self.pages.edit_card.on_input(key, &mut self.db),
                 },
                 Event::Paste(s) => match self.route {
                     Route::AddCard => self.pages.add_card.on_paste(s),
-                    Route::EditCard => self.pages.edit_card.on_paste(s),
+                    Route::EditCard(_) => self.pages.edit_card.on_paste(s),
                     _ => Action::None,
                 },
                 Event::Resize(_, _) => Action::Render,
@@ -56,7 +56,7 @@ impl App {
                     match self.route {
                         Route::Review => self.pages.review.on_exit(),
                         Route::AddCard => self.pages.add_card.on_exit(),
-                        Route::EditCard => self.pages.edit_card.on_exit(),
+                        Route::EditCard(_) => self.pages.edit_card.on_exit(),
                     }
 
                     self.route = route;
@@ -64,7 +64,7 @@ impl App {
                     match route {
                         Route::Review => self.pages.review.on_enter(&self.db),
                         Route::AddCard => self.pages.add_card.on_enter(&self.db),
-                        Route::EditCard => self.pages.edit_card.on_enter(&self.db),
+                        Route::EditCard(id) => self.pages.edit_card.on_enter(id, &self.db),
                     }
 
                     self.render(&mut terminal)?;
@@ -110,7 +110,7 @@ impl App {
                     self.pages.add_card.on_render(body, buf);
                     self.pages.add_card.shortcuts()
                 }
-                Route::EditCard => {
+                Route::EditCard(_) => {
                     self.pages.edit_card.on_render(body, buf);
                     self.pages.edit_card.shortcuts()
                 }
