@@ -323,6 +323,9 @@ bye"#,
                     return Action::Render;
                 }
                 KeyCode::Char('s') => {
+                    self.editor.push_char('s');
+                    self.editor.move_cursor(CursorMove::Forward);
+                    return Action::Render;
                     // if key.modifiers.contains(KeyModifiers::CONTROL) {
                     //     // todo: save and go back
                     //     let card = db.get_mut(&self.card_id).unwrap();
@@ -398,8 +401,8 @@ impl TextEditor {
     }
 
     fn push_char(&mut self, c: char) {
-        self.input.push(c);
-        todo!()
+        self.input.insert(self.cursor, c);
+        //todo!()
     }
 
     fn push_str(&mut self, s: &str) {
