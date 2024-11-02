@@ -265,20 +265,28 @@ impl AddCard {
 
 pub struct EditCard {
     card_id: CardId,
-    editor: TextArea<'static>,
+    // editor: TextArea<'static>,
+    editor: TextEditor,
 }
 
 impl EditCard {
     pub fn new() -> Self {
         Self {
             card_id: CardId::default(),
-            editor: TextArea::default(),
+            // editor: TextArea::default(),
+            editor: TextEditor::new(),
         }
     }
 
     pub fn on_enter(&mut self, card_id: CardId, db: &Database) {
         self.card_id = card_id;
-        self.editor.insert_str(db.get(&card_id).unwrap().0.as_str());
+        // self.editor.insert_str(db.get(&card_id).unwrap().0.as_str());
+        // self.editor
+        //     .input
+        //     .push_str(db.get(&card_id).unwrap().0.as_str());
+        self.editor
+            .input
+            .push_str("yoyo this is a line that you can edit");
     }
 
     pub fn on_render(&self, area: Rect, buf: &mut Buffer) {
@@ -289,29 +297,38 @@ impl EditCard {
         if key.kind == KeyEventKind::Press {
             match key.code {
                 KeyCode::Esc => return Action::Quit,
+                KeyCode::Tab => return Action::Route(Route::AddCard),
+                KeyCode::Right => {
+                    self.editor.move_cursor(CursorMove::Forward);
+                    return Action::Render;
+                }
+                KeyCode::Left => {
+                    self.editor.move_cursor(CursorMove::Back);
+                    return Action::Render;
+                }
                 KeyCode::Char('s') => {
-                    if key.modifiers.contains(KeyModifiers::CONTROL) {
-                        // todo: save and go back
-                        let card = db.get_mut(&self.card_id).unwrap();
-                        card.0 = self.editor.lines().join("\n");
-                        return Action::Route(Route::Review);
-                    } else {
-                        self.editor.input(key);
-                        return Action::Render;
-                    }
+                    // if key.modifiers.contains(KeyModifiers::CONTROL) {
+                    //     // todo: save and go back
+                    //     let card = db.get_mut(&self.card_id).unwrap();
+                    //     card.0 = self.editor.lines().join("\n");
+                    //     return Action::Route(Route::Review);
+                    // } else {
+                    //     self.editor.input(key);
+                    //     return Action::Render;
+                    // }
                 }
                 KeyCode::Char('c') => {
-                    if key.modifiers.contains(KeyModifiers::CONTROL) {
-                        // todo: cancel and go back
-                        return Action::Route(Route::Review);
-                    } else {
-                        self.editor.input(key);
-                        return Action::Render;
-                    }
+                    // if key.modifiers.contains(KeyModifiers::CONTROL) {
+                    //     // todo: cancel and go back
+                    //     return Action::Route(Route::Review);
+                    // } else {
+                    //     self.editor.input(key);
+                    //     return Action::Render;
+                    // }
                 }
                 _ => {
-                    self.editor.input(key);
-                    return Action::Render;
+                    // self.editor.input(key);
+                    // return Action::Render;
                 }
             }
         }
@@ -326,10 +343,74 @@ impl EditCard {
 
     pub fn on_exit(&mut self) {
         self.card_id = CardId::default();
-        self.editor = TextArea::default();
+        // self.editor = TextArea::default();
     }
 
     pub fn shortcuts<'a>(&'a self) -> &'a [Shortcut] {
         &[SHORTCUT_SAVE, SHORTCUT_CANCEL, SHORTCUT_QUIT]
     }
+}
+
+struct TextEditor {
+    input: String,
+    cursor: usize,
+}
+
+impl TextEditor {
+    pub const fn new() -> Self {
+        Self {
+            input: String::new(),
+            cursor: 0,
+        }
+    }
+
+    fn move_cursor(&mut self, cm: CursorMove) {
+        match cm {
+            CursorMove::Forward => {
+                if let Some((_, c)) = self.input[self.cursor..].char_indices().next() {
+                    self.cursor += c.len_utf8();
+                }
+            }
+            CursorMove::Back => {
+                if let Some((_, c)) = self.input[..self.cursor].char_indices().rev().next() {
+                    self.cursor -= c.len_utf8();
+                }
+            }
+        }
+    }
+
+    fn push_char(&mut self, c: char) {
+        self.input.push(c);
+        todo!()
+    }
+
+    fn push_str(&mut self, s: &str) {
+        self.input.push_str(s);
+        todo!()
+    }
+
+    fn render(&self, area: Rect, buf: &mut Buffer) {
+        const STYLE_CURSOR: Style = Style::new().bg(Color::White).fg(Color::Black);
+
+        let mut line = Line::default();
+        for (i, c) in self.input.char_indices() {
+            let span = if i == self.cursor {
+                Span::styled(c.to_string(), STYLE_CURSOR)
+            } else {
+                Span::raw(c.to_string())
+            };
+            line.push_span(span);
+        }
+
+        if self.cursor == self.input.len() {
+            line.push_span(Span::styled(" ", STYLE_CURSOR));
+        }
+
+        line.render(area, buf);
+    }
+}
+
+enum CursorMove {
+    Forward,
+    Back,
 }

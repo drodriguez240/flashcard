@@ -21,14 +21,14 @@ impl App {
     pub fn new() -> Self {
         Self {
             running: true,
-            route: Route::Review,
+            route: Route::EditCard(CardId(1)),
             pages: Pages::new(),
             db: Database::new(),
         }
     }
 
     pub fn run(mut self, mut terminal: DefaultTerminal) -> std::io::Result<()> {
-        self.pages.review.on_enter(&self.db);
+        self.pages.edit_card.on_enter(CardId(1), &self.db);
         self.render(&mut terminal)?;
 
         while self.running {
