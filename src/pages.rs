@@ -286,7 +286,7 @@ impl EditCard {
         //     .push_str(db.get(&card_id).unwrap().0.as_str());
         self.editor
             .input
-            .push_str("yoyo this is a line that you can edit");
+            .push_str("\n\nyoyo\n\nthis is a line\nthat\nyou\ncan\nedit\n\n");
     }
 
     pub fn on_render(&self, area: Rect, buf: &mut Buffer) {
@@ -392,21 +392,30 @@ impl TextEditor {
     fn render(&self, area: Rect, buf: &mut Buffer) {
         const STYLE_CURSOR: Style = Style::new().bg(Color::White).fg(Color::Black);
 
-        let mut line = Line::default();
+        let mut char_area = Rect::new(area.x, area.y, 1, 1);
+
         for (i, c) in self.input.char_indices() {
+            if c == '\n' {
+                if i == self.cursor {
+                    Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
+                }
+                char_area.y += 1;
+                char_area.x = area.x;
+                continue;
+            }
+
             let span = if i == self.cursor {
                 Span::styled(c.to_string(), STYLE_CURSOR)
             } else {
                 Span::raw(c.to_string())
             };
-            line.push_span(span);
+            span.render(char_area, buf);
+            char_area.x += c.len_utf8() as u16;
         }
 
         if self.cursor == self.input.len() {
-            line.push_span(Span::styled(" ", STYLE_CURSOR));
+            Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
         }
-
-        line.render(area, buf);
     }
 }
 
