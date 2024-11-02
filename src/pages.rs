@@ -294,6 +294,7 @@ kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
 
 bye"#,
         );
+        self.editor.move_cursor(CursorMove::End);
     }
 
     pub fn on_render(&self, area: Rect, buf: &mut Buffer) {
@@ -311,6 +312,14 @@ bye"#,
                 }
                 KeyCode::Left => {
                     self.editor.move_cursor(CursorMove::Back);
+                    return Action::Render;
+                }
+                KeyCode::Up => {
+                    self.editor.move_cursor(CursorMove::Start);
+                    return Action::Render;
+                }
+                KeyCode::Down => {
+                    self.editor.move_cursor(CursorMove::End);
                     return Action::Render;
                 }
                 KeyCode::Char('s') => {
@@ -383,6 +392,8 @@ impl TextEditor {
                     self.cursor -= c.len_utf8();
                 }
             }
+            CursorMove::Start => self.cursor = 0,
+            CursorMove::End => self.cursor = self.input.len(),
         }
     }
 
@@ -423,8 +434,19 @@ impl TextEditor {
                 // let diff = line_end - self.cursor;
                 col = self.cursor - i;
                 row = newlines;
+                // dbg!(col);
+                // dbg!(line_end);
+                // dbg!(newlines);
+                // dbg!(self.input.len());
+                // let extra_newlines = line_end - self.input.len();
+                // if line_end >= self.input.len() {
+                //     col += 1;
+                // }
+                if self.cursor == self.input.len() {
+                    // col += 1;
+                }
             }
-            i += len;
+            i = line_end;
             // row += 1;
             Line::raw(line).render(line_area, buf);
             line_area.y += 1;
@@ -521,6 +543,8 @@ impl TextEditor {
 enum CursorMove {
     Forward,
     Back,
+    Start,
+    End,
 }
 
 struct LineParser<'a> {
