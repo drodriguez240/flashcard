@@ -424,10 +424,12 @@ impl TextEditor {
             width: area.width,
             height: 1,
         };
-        for (newlines, line) in LineParser::new(&self.input, area.width as usize).enumerate() {
+        for (line_index, (line, newline_len)) in
+            LineParser::new(&self.input, area.width as usize).enumerate()
+        {
             //todo
             // i += line.len();
-            let len = line.len() + 1;
+            let len = line.len() + newline_len;
             // if i + len < self.cursor {
             //     sum -= len;
             //     i += len;
@@ -436,7 +438,7 @@ impl TextEditor {
             if i <= self.cursor && line_end >= self.cursor {
                 // let diff = line_end - self.cursor;
                 col = self.cursor - i;
-                row = newlines;
+                row = line_index;
                 // dbg!(col);
                 // dbg!(line_end);
                 // dbg!(newlines);
@@ -569,7 +571,7 @@ impl<'a> LineParser<'a> {
 }
 
 impl<'a> Iterator for LineParser<'a> {
-    type Item = &'a str;
+    type Item = (&'a str, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.start == self.text.len() {
@@ -581,14 +583,14 @@ impl<'a> Iterator for LineParser<'a> {
             let Some((i, c)) = self.chars.next() else {
                 let line = &self.text[self.start..];
                 self.start = self.text.len();
-                return Some(line);
+                return Some((line, 0));
             };
 
             match c {
                 '\n' => {
                     let line = &self.text[self.start..i];
                     self.start = i + 1;
-                    return Some(line);
+                    return Some((line, 1));
                 }
                 _ => {
                     width += 1;
@@ -596,7 +598,7 @@ impl<'a> Iterator for LineParser<'a> {
                         let end = i + c.len_utf8();
                         let line = &self.text[self.start..end];
                         self.start = end;
-                        return Some(line);
+                        return Some((line, 0));
                     }
                 }
             }
