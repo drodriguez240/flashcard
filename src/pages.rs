@@ -391,26 +391,30 @@ impl TextEditor {
 
     fn render(&self, area: Rect, buf: &mut Buffer) {
         const STYLE_CURSOR: Style = Style::new().bg(Color::White).fg(Color::Black);
+        const STYLE_NONE: Style = Style::new();
 
         let mut char_area = Rect::new(area.x, area.y, 1, 1);
 
         for (i, c) in self.input.char_indices() {
-            if c == '\n' {
-                if i == self.cursor {
-                    Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
+            let is_cursor_pos = i == self.cursor;
+            match c {
+                '\n' => {
+                    if is_cursor_pos {
+                        Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
+                    }
+                    char_area.y += 1;
+                    char_area.x = area.x;
                 }
-                char_area.y += 1;
-                char_area.x = area.x;
-                continue;
+                _ => {
+                    let style = if is_cursor_pos {
+                        STYLE_CURSOR
+                    } else {
+                        STYLE_NONE
+                    };
+                    Span::styled(c.to_string(), style).render(char_area, buf);
+                    char_area.x += c.len_utf8() as u16;
+                }
             }
-
-            let span = if i == self.cursor {
-                Span::styled(c.to_string(), STYLE_CURSOR)
-            } else {
-                Span::raw(c.to_string())
-            };
-            span.render(char_area, buf);
-            char_area.x += c.len_utf8() as u16;
         }
 
         if self.cursor == self.input.len() {
