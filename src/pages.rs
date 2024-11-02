@@ -284,9 +284,16 @@ impl EditCard {
         // self.editor
         //     .input
         //     .push_str(db.get(&card_id).unwrap().0.as_str());
-        self.editor
-            .input
-            .push_str("\n\nyoyo\n\nthis is a line\nthat\nyou\ncan\nedit\n\n");
+        self.editor.input.push_str(
+            r#"
+yoyo
+
+this is a line that is super long and should definitively wrap
+
+kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+
+bye"#,
+        );
     }
 
     pub fn on_render(&self, area: Rect, buf: &mut Buffer) {
@@ -394,8 +401,33 @@ impl TextEditor {
         const STYLE_NONE: Style = Style::new();
 
         let mut char_area = Rect::new(area.x, area.y, 1, 1);
+        let wrapped = textwrap::fill(
+            &self.input,
+            textwrap::Options::new(area.width as usize)
+                .wrap_algorithm(textwrap::WrapAlgorithm::FirstFit),
+        );
 
-        for (i, c) in self.input.char_indices() {
+        fn count_newlines_until(s: &str, i: usize) -> usize {
+            let mut newlines = 0;
+            let mut chars = s.char_indices();
+            loop {
+                let Some((_i, c)) = chars.next() else {
+                    break;
+                };
+
+                if _i > i {
+                    break;
+                }
+
+                if c == '\n' {
+                    newlines += 1;
+                }
+            }
+            newlines
+        }
+
+        let mut offset = 0;
+        for (i, c) in wrapped.char_indices() {
             let is_cursor_pos = i == self.cursor;
             match c {
                 '\n' => {
@@ -412,7 +444,7 @@ impl TextEditor {
                         STYLE_NONE
                     };
                     Span::styled(c.to_string(), style).render(char_area, buf);
-                    char_area.x += c.len_utf8() as u16;
+                    char_area.x += 1;
                 }
             }
         }
@@ -420,6 +452,37 @@ impl TextEditor {
         if self.cursor == self.input.len() {
             Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
         }
+
+        // if let Some((i, c)) = self.input.char_indices().find(|(i, _)| *i == self.cursor) {
+        //     //todo
+
+        // }
+
+        // for (i, c) in self.input.char_indices() {
+        //     let is_cursor_pos = i == self.cursor;
+        //     match c {
+        //         '\n' => {
+        //             if is_cursor_pos {
+        //                 Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
+        //             }
+        //             char_area.y += 1;
+        //             char_area.x = area.x;
+        //         }
+        //         _ => {
+        //             let style = if is_cursor_pos {
+        //                 STYLE_CURSOR
+        //             } else {
+        //                 STYLE_NONE
+        //             };
+        //             Span::styled(c.to_string(), style).render(char_area, buf);
+        //             char_area.x += c.len_utf8() as u16;
+        //         }
+        //     }
+        // }
+
+        // if self.cursor == self.input.len() {
+        //     Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
+        // }
     }
 }
 
