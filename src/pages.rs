@@ -288,7 +288,7 @@ impl EditCard {
             r#"
 yoyo
 
-this is a line that is super long and should definitively wrap
+this is a line     that is super      long     and should definitively          wrap
 
 kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
 
@@ -396,62 +396,94 @@ impl TextEditor {
         todo!()
     }
 
-    fn render(&self, area: Rect, buf: &mut Buffer) {
+    fn render(&self, mut area: Rect, buf: &mut Buffer) {
         const STYLE_CURSOR: Style = Style::new().bg(Color::White).fg(Color::Black);
         const STYLE_NONE: Style = Style::new();
 
-        let mut char_area = Rect::new(area.x, area.y, 1, 1);
-        let wrapped = textwrap::fill(
-            &self.input,
-            textwrap::Options::new(area.width as usize)
-                .wrap_algorithm(textwrap::WrapAlgorithm::FirstFit),
-        );
-
-        fn count_newlines_until(s: &str, i: usize) -> usize {
-            let mut newlines = 0;
-            let mut chars = s.char_indices();
-            loop {
-                let Some((_i, c)) = chars.next() else {
-                    break;
-                };
-
-                if _i > i {
-                    break;
-                }
-
-                if c == '\n' {
-                    newlines += 1;
-                }
+        let mut col = 0;
+        let mut row = 0;
+        let mut i = 0;
+        let mut sum = self.input.len();
+        let mut line_area = Rect {
+            x: area.x,
+            y: area.y,
+            width: area.width,
+            height: 1,
+        };
+        for (newlines, line) in LineParser::new(&self.input, area.width as usize).enumerate() {
+            //todo
+            // i += line.len();
+            let len = line.len() + 1;
+            // if i + len < self.cursor {
+            //     sum -= len;
+            //     i += len;
+            // }
+            let line_end = i + len;
+            if i <= self.cursor && line_end >= self.cursor {
+                // let diff = line_end - self.cursor;
+                col = self.cursor - i;
+                row = newlines;
             }
-            newlines
+            i += len;
+            // row += 1;
+            Line::raw(line).render(line_area, buf);
+            line_area.y += 1;
         }
 
-        let mut offset = 0;
-        for (i, c) in wrapped.char_indices() {
-            let is_cursor_pos = i == self.cursor;
-            match c {
-                '\n' => {
-                    if is_cursor_pos {
-                        Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
-                    }
-                    char_area.y += 1;
-                    char_area.x = area.x;
-                }
-                _ => {
-                    let style = if is_cursor_pos {
-                        STYLE_CURSOR
-                    } else {
-                        STYLE_NONE
-                    };
-                    Span::styled(c.to_string(), style).render(char_area, buf);
-                    char_area.x += 1;
-                }
-            }
-        }
+        buf[(area.x + col as u16, area.y + row as u16)].set_bg(Color::Green);
 
-        if self.cursor == self.input.len() {
-            Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
-        }
+        // let mut char_area = Rect::new(area.x, area.y, 1, 1);
+        // let wrapped = textwrap::fill(
+        //     &self.input,
+        //     textwrap::Options::new(area.width as usize)
+        //         .wrap_algorithm(textwrap::WrapAlgorithm::FirstFit),
+        // );
+
+        // fn count_newlines_until(s: &str, i: usize) -> usize {
+        //     let mut newlines = 0;
+        //     let mut chars = s.char_indices();
+        //     loop {
+        //         let Some((_i, c)) = chars.next() else {
+        //             break;
+        //         };
+
+        //         if _i > i {
+        //             break;
+        //         }
+
+        //         if c == '\n' {
+        //             newlines += 1;
+        //         }
+        //     }
+        //     newlines
+        // }
+
+        // let mut offset = 0;
+        // for (i, c) in wrapped.char_indices() {
+        //     let is_cursor_pos = i == self.cursor;
+        //     match c {
+        //         '\n' => {
+        //             if is_cursor_pos {
+        //                 Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
+        //             }
+        //             char_area.y += 1;
+        //             char_area.x = area.x;
+        //         }
+        //         _ => {
+        //             let style = if is_cursor_pos {
+        //                 STYLE_CURSOR
+        //             } else {
+        //                 STYLE_NONE
+        //             };
+        //             Span::styled(c.to_string(), style).render(char_area, buf);
+        //             char_area.x += 1;
+        //         }
+        //     }
+        // }
+
+        // if self.cursor == self.input.len() {
+        //     Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
+        // }
 
         // if let Some((i, c)) = self.input.char_indices().find(|(i, _)| *i == self.cursor) {
         //     //todo
@@ -489,4 +521,58 @@ impl TextEditor {
 enum CursorMove {
     Forward,
     Back,
+}
+
+struct LineParser<'a> {
+    text: &'a str,
+    line_width: usize,
+    start: usize,
+    chars: std::str::CharIndices<'a>,
+}
+
+impl<'a> LineParser<'a> {
+    fn new(text: &'a str, line_width: usize) -> Self {
+        Self {
+            text,
+            line_width,
+            start: 0,
+            chars: text.char_indices(),
+        }
+    }
+}
+
+impl<'a> Iterator for LineParser<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start == self.text.len() {
+            return None;
+        }
+
+        let mut width = 0; // todo: utf8
+        loop {
+            let Some((i, c)) = self.chars.next() else {
+                let line = &self.text[self.start..];
+                self.start = self.text.len();
+                return Some(line);
+            };
+
+            match c {
+                '\n' => {
+                    let line = &self.text[self.start..i];
+                    self.start = i + 1;
+                    return Some(line);
+                }
+                _ => {
+                    width += 1;
+                    if width >= self.line_width {
+                        let end = i + c.len_utf8();
+                        let line = &self.text[self.start..end];
+                        self.start = end;
+                        return Some(line);
+                    }
+                }
+            }
+        }
+    }
 }
