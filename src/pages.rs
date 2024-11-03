@@ -294,7 +294,6 @@ kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
 
 bye"#,
         );
-        self.editor.move_cursor(CursorMove::End);
     }
 
     pub fn on_render(&self, area: Rect, buf: &mut Buffer) {
@@ -315,10 +314,18 @@ bye"#,
                     return Action::Render;
                 }
                 KeyCode::Up => {
-                    self.editor.move_cursor(CursorMove::Start);
+                    self.editor.move_cursor(CursorMove::Up);
                     return Action::Render;
                 }
                 KeyCode::Down => {
+                    self.editor.move_cursor(CursorMove::Down);
+                    return Action::Render;
+                }
+                KeyCode::Home => {
+                    self.editor.move_cursor(CursorMove::Start);
+                    return Action::Render;
+                }
+                KeyCode::End => {
                     self.editor.move_cursor(CursorMove::End);
                     return Action::Render;
                 }
@@ -394,6 +401,28 @@ impl TextEditor {
                 if let Some((_, c)) = self.input[..self.cursor].char_indices().rev().next() {
                     self.cursor -= c.len_utf8();
                 }
+            }
+            CursorMove::Up => {
+                let mut n = 0;
+                let mut chars = self.input[..self.cursor].chars().rev();
+                while let Some(c) = chars.next() {
+                    n += c.len_utf8();
+                    if c == '\n' {
+                        break;
+                    }
+                }
+                self.cursor -= n;
+            }
+            CursorMove::Down => {
+                let mut n = 0;
+                let mut chars = self.input[self.cursor..].chars();
+                while let Some(c) = chars.next() {
+                    n += c.len_utf8();
+                    if c == '\n' {
+                        break;
+                    }
+                }
+                self.cursor += n;
             }
             CursorMove::Start => self.cursor = 0,
             CursorMove::End => self.cursor = self.input.len(),
@@ -548,6 +577,8 @@ impl TextEditor {
 enum CursorMove {
     Forward,
     Back,
+    Up,
+    Down,
     Start,
     End,
 }
