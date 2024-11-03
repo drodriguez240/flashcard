@@ -124,7 +124,17 @@ impl Widget for &TextEditor {
             let len = line.len() + line_split_char_len;
             let line_end_idx = current_idx + len;
             if current_idx <= self.cursor && line_end_idx >= self.cursor {
-                cursor_pos.0 = (self.cursor - current_idx) as u16;
+                cursor_pos.0 = {
+                    let mut col = 0;
+                    let mut chars = self.input[current_idx..self.cursor].char_indices();
+                    while let Some((i, _)) = chars.next() {
+                        if i >= self.cursor {
+                            break;
+                        }
+                        col += 1;
+                    }
+                    col
+                };
                 cursor_pos.1 = line_index as u16;
             }
             current_idx = line_end_idx;
@@ -141,6 +151,7 @@ struct LineParser<'a> {
     line_width: usize,
     start: usize,
     chars: std::str::CharIndices<'a>,
+    last_is_newline: bool,
 }
 
 impl<'a> LineParser<'a> {
@@ -150,6 +161,7 @@ impl<'a> LineParser<'a> {
             line_width,
             start: 0,
             chars: text.char_indices(),
+            last_is_newline: false,
         }
     }
 }
@@ -159,7 +171,12 @@ impl<'a> Iterator for LineParser<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.start == self.text.len() {
-            return None;
+            if self.last_is_newline {
+                self.last_is_newline = false;
+                return Some(("", 0));
+            } else {
+                return None;
+            }
         }
 
         let mut width = 0; // todo: utf8
@@ -174,10 +191,16 @@ impl<'a> Iterator for LineParser<'a> {
                 '\n' => {
                     let line = &self.text[self.start..i];
                     self.start = i + 1;
+
+                    if self.start == self.text.len() {
+                        self.last_is_newline = true;
+                    }
+
                     return Some((line, 1));
                 }
                 _ => {
                     width += 1;
+
                     if width >= self.line_width {
                         let end = i + c.len_utf8();
                         let line = &self.text[self.start..end];
