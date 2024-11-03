@@ -26,8 +26,8 @@ impl<'a> Shortcut<'a> {
     }
 }
 
-pub fn layout_center(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
-    layout_center_vertical(layout_center_horizontal(area, horizontal), vertical)
+pub fn _layout_center(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
+    _layout_center_vertical(layout_center_horizontal(area, horizontal), vertical)
 }
 
 pub fn layout_center_horizontal(area: Rect, constraint: Constraint) -> Rect {
@@ -37,7 +37,7 @@ pub fn layout_center_horizontal(area: Rect, constraint: Constraint) -> Rect {
     area
 }
 
-pub fn layout_center_vertical(area: Rect, constraint: Constraint) -> Rect {
+pub fn _layout_center_vertical(area: Rect, constraint: Constraint) -> Rect {
     let [area] = Layout::vertical([constraint])
         .flex(Flex::Center)
         .areas(area);

@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::prelude::*;
 use tui_textarea::TextArea;
 
-use crate::{app::Action, database::*, markup::*, utils::*};
+use crate::{app::Action, database::*, editor::*, markup::*, utils::*};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Route {
@@ -202,7 +202,7 @@ impl AddCard {
         }
     }
 
-    pub fn on_enter(&mut self, db: &Database) {
+    pub fn on_enter(&mut self, _db: &Database) {
         //todo
     }
 
@@ -244,7 +244,7 @@ impl AddCard {
         Action::None
     }
 
-    pub fn on_paste(&mut self, s: String) -> Action {
+    pub fn on_paste(&mut self, _s: String) -> Action {
         //todo
         Action::None
     }
@@ -265,7 +265,6 @@ impl AddCard {
 
 pub struct EditCard {
     card_id: CardId,
-    // editor: TextArea<'static>,
     editor: TextEditor,
 }
 
@@ -273,27 +272,14 @@ impl EditCard {
     pub fn new() -> Self {
         Self {
             card_id: CardId::default(),
-            // editor: TextArea::default(),
             editor: TextEditor::new(),
         }
     }
 
     pub fn on_enter(&mut self, card_id: CardId, db: &Database) {
         self.card_id = card_id;
-        // self.editor.insert_str(db.get(&card_id).unwrap().0.as_str());
-        // self.editor
-        //     .input
-        //     .push_str(db.get(&card_id).unwrap().0.as_str());
-        self.editor.input.push_str(
-            r#"
-yoyo
-
-this is a line     that is super      long     and should definitively          wrap
-
-kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
-
-bye"#,
-        );
+        let card = db.get(&card_id).unwrap();
+        self.editor.push_str(card.0.as_str());
     }
 
     pub fn on_render(&self, area: Rect, buf: &mut Buffer) {
@@ -329,310 +315,53 @@ bye"#,
                     self.editor.move_cursor(CursorMove::End);
                     return Action::Render;
                 }
-                KeyCode::Char('s') => {
-                    self.editor.push_char('s');
-                    self.editor.move_cursor(CursorMove::Forward);
+                KeyCode::Char(c) => {
+                    match c {
+                        's' => {
+                            if key.modifiers.contains(KeyModifiers::CONTROL) {
+                                let card = db.get_mut(&self.card_id).unwrap();
+                                card.0 = self.editor.as_str().to_owned();
+                                return Action::Route(Route::Review); // todo: go back
+                            } else {
+                                self.editor.push_char(c);
+                                self.editor.cursor_add(c.len_utf8());
+                                return Action::Render;
+                            }
+                        }
+                        'c' => {
+                            if key.modifiers.contains(KeyModifiers::CONTROL) {
+                                return Action::Route(Route::Review); // todo: go back
+                            } else {
+                                self.editor.push_char(c);
+                                self.editor.cursor_add(c.len_utf8());
+                                return Action::Render;
+                            }
+                        }
+                        _ => {
+                            self.editor.push_char(c);
+                            self.editor.cursor_add(c.len_utf8());
+                        }
+                    }
                     return Action::Render;
-                    // if key.modifiers.contains(KeyModifiers::CONTROL) {
-                    //     // todo: save and go back
-                    //     let card = db.get_mut(&self.card_id).unwrap();
-                    //     card.0 = self.editor.lines().join("\n");
-                    //     return Action::Route(Route::Review);
-                    // } else {
-                    //     self.editor.input(key);
-                    //     return Action::Render;
-                    // }
                 }
-                KeyCode::Char('c') => {
-                    // if key.modifiers.contains(KeyModifiers::CONTROL) {
-                    //     // todo: cancel and go back
-                    //     return Action::Route(Route::Review);
-                    // } else {
-                    //     self.editor.input(key);
-                    //     return Action::Render;
-                    // }
-                }
-                _ => {
-                    // self.editor.input(key);
-                    // return Action::Render;
-                }
+                _ => {}
             }
         }
 
         Action::None
     }
 
-    pub fn on_paste(&mut self, s: String) -> Action {
-        //todo
+    pub fn on_paste(&mut self, _s: String) -> Action {
+        // todo
         Action::None
     }
 
     pub fn on_exit(&mut self) {
         self.card_id = CardId::default();
-        // self.editor = TextArea::default();
+        self.editor.clear();
     }
 
     pub fn shortcuts<'a>(&'a self) -> &'a [Shortcut] {
         &[SHORTCUT_SAVE, SHORTCUT_CANCEL, SHORTCUT_QUIT]
-    }
-}
-
-struct TextEditor {
-    input: String,
-    cursor: usize,
-}
-
-impl TextEditor {
-    pub const fn new() -> Self {
-        Self {
-            input: String::new(),
-            cursor: 0,
-        }
-    }
-
-    fn move_cursor(&mut self, cm: CursorMove) {
-        match cm {
-            CursorMove::Forward => {
-                if let Some((_, c)) = self.input[self.cursor..].char_indices().next() {
-                    self.cursor += c.len_utf8();
-                }
-            }
-            CursorMove::Back => {
-                if let Some((_, c)) = self.input[..self.cursor].char_indices().rev().next() {
-                    self.cursor -= c.len_utf8();
-                }
-            }
-            CursorMove::Up => {
-                let mut n = 0;
-                let mut chars = self.input[..self.cursor].chars().rev();
-                while let Some(c) = chars.next() {
-                    n += c.len_utf8();
-                    if c == '\n' {
-                        break;
-                    }
-                }
-                self.cursor -= n;
-            }
-            CursorMove::Down => {
-                let mut n = 0;
-                let mut chars = self.input[self.cursor..].chars();
-                while let Some(c) = chars.next() {
-                    n += c.len_utf8();
-                    if c == '\n' {
-                        break;
-                    }
-                }
-                self.cursor += n;
-            }
-            CursorMove::Start => self.cursor = 0,
-            CursorMove::End => self.cursor = self.input.len(),
-        }
-    }
-
-    fn push_char(&mut self, c: char) {
-        self.input.insert(self.cursor, c);
-        //todo!()
-    }
-
-    fn push_str(&mut self, s: &str) {
-        self.input.push_str(s);
-        todo!()
-    }
-
-    fn render(&self, mut area: Rect, buf: &mut Buffer) {
-        const STYLE_CURSOR: Style = Style::new().bg(Color::White).fg(Color::Black);
-        const STYLE_NONE: Style = Style::new();
-
-        let mut col = 0;
-        let mut row = 0;
-        let mut i = 0;
-        let mut sum = self.input.len();
-        let mut line_area = Rect {
-            x: area.x,
-            y: area.y,
-            width: area.width,
-            height: 1,
-        };
-        for (line_index, (line, newline_len)) in
-            LineParser::new(&self.input, area.width as usize).enumerate()
-        {
-            //todo
-            // i += line.len();
-            let len = line.len() + newline_len;
-            // if i + len < self.cursor {
-            //     sum -= len;
-            //     i += len;
-            // }
-            let line_end = i + len;
-            if i <= self.cursor && line_end >= self.cursor {
-                // let diff = line_end - self.cursor;
-                col = self.cursor - i;
-                row = line_index;
-                // dbg!(col);
-                // dbg!(line_end);
-                // dbg!(newlines);
-                // dbg!(self.input.len());
-                // let extra_newlines = line_end - self.input.len();
-                // if line_end >= self.input.len() {
-                //     col += 1;
-                // }
-                if self.cursor == self.input.len() {
-                    // col += 1;
-                }
-            }
-            i = line_end;
-            // row += 1;
-            Line::raw(line).render(line_area, buf);
-            line_area.y += 1;
-        }
-
-        buf[(area.x + col as u16, area.y + row as u16)].set_bg(Color::Green);
-
-        // let mut char_area = Rect::new(area.x, area.y, 1, 1);
-        // let wrapped = textwrap::fill(
-        //     &self.input,
-        //     textwrap::Options::new(area.width as usize)
-        //         .wrap_algorithm(textwrap::WrapAlgorithm::FirstFit),
-        // );
-
-        // fn count_newlines_until(s: &str, i: usize) -> usize {
-        //     let mut newlines = 0;
-        //     let mut chars = s.char_indices();
-        //     loop {
-        //         let Some((_i, c)) = chars.next() else {
-        //             break;
-        //         };
-
-        //         if _i > i {
-        //             break;
-        //         }
-
-        //         if c == '\n' {
-        //             newlines += 1;
-        //         }
-        //     }
-        //     newlines
-        // }
-
-        // let mut offset = 0;
-        // for (i, c) in wrapped.char_indices() {
-        //     let is_cursor_pos = i == self.cursor;
-        //     match c {
-        //         '\n' => {
-        //             if is_cursor_pos {
-        //                 Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
-        //             }
-        //             char_area.y += 1;
-        //             char_area.x = area.x;
-        //         }
-        //         _ => {
-        //             let style = if is_cursor_pos {
-        //                 STYLE_CURSOR
-        //             } else {
-        //                 STYLE_NONE
-        //             };
-        //             Span::styled(c.to_string(), style).render(char_area, buf);
-        //             char_area.x += 1;
-        //         }
-        //     }
-        // }
-
-        // if self.cursor == self.input.len() {
-        //     Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
-        // }
-
-        // if let Some((i, c)) = self.input.char_indices().find(|(i, _)| *i == self.cursor) {
-        //     //todo
-
-        // }
-
-        // for (i, c) in self.input.char_indices() {
-        //     let is_cursor_pos = i == self.cursor;
-        //     match c {
-        //         '\n' => {
-        //             if is_cursor_pos {
-        //                 Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
-        //             }
-        //             char_area.y += 1;
-        //             char_area.x = area.x;
-        //         }
-        //         _ => {
-        //             let style = if is_cursor_pos {
-        //                 STYLE_CURSOR
-        //             } else {
-        //                 STYLE_NONE
-        //             };
-        //             Span::styled(c.to_string(), style).render(char_area, buf);
-        //             char_area.x += c.len_utf8() as u16;
-        //         }
-        //     }
-        // }
-
-        // if self.cursor == self.input.len() {
-        //     Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
-        // }
-    }
-}
-
-enum CursorMove {
-    Forward,
-    Back,
-    Up,
-    Down,
-    Start,
-    End,
-}
-
-struct LineParser<'a> {
-    text: &'a str,
-    line_width: usize,
-    start: usize,
-    chars: std::str::CharIndices<'a>,
-}
-
-impl<'a> LineParser<'a> {
-    fn new(text: &'a str, line_width: usize) -> Self {
-        Self {
-            text,
-            line_width,
-            start: 0,
-            chars: text.char_indices(),
-        }
-    }
-}
-
-impl<'a> Iterator for LineParser<'a> {
-    type Item = (&'a str, usize);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.start == self.text.len() {
-            return None;
-        }
-
-        let mut width = 0; // todo: utf8
-        loop {
-            let Some((i, c)) = self.chars.next() else {
-                let line = &self.text[self.start..];
-                self.start = self.text.len();
-                return Some((line, 0));
-            };
-
-            match c {
-                '\n' => {
-                    let line = &self.text[self.start..i];
-                    self.start = i + 1;
-                    return Some((line, 1));
-                }
-                _ => {
-                    width += 1;
-                    if width >= self.line_width {
-                        let end = i + c.len_utf8();
-                        let line = &self.text[self.start..end];
-                        self.start = end;
-                        return Some((line, 0));
-                    }
-                }
-            }
-        }
     }
 }
