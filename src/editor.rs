@@ -1,5 +1,3 @@
-use std::ops::{AddAssign, SubAssign};
-
 use ratatui::prelude::*;
 
 use crate::utils::{STYLE_CURSOR, STYLE_NONE};
@@ -7,11 +5,11 @@ use crate::utils::{STYLE_CURSOR, STYLE_NONE};
 pub struct TextEditor {
     input: String,
     line_width: u16,
-    cursor_index: usize,
-    cursor_line_index: usize,
+    cursor: usize,
+    cursor_line: usize,
     cursor_line_chars: usize,
-    line_start_indexes: Vec<usize>,
-    selector: Option<usize>,
+    line_starts: Vec<usize>,
+    selection_start: Option<usize>,
 }
 
 pub enum CursorMove {
@@ -28,11 +26,11 @@ impl TextEditor {
         Self {
             input: String::new(),
             line_width: 0,
-            cursor_index: 0,
-            cursor_line_index: 0,
+            cursor: 0,
+            cursor_line: 0,
             cursor_line_chars: 0,
-            line_start_indexes: Vec::new(),
-            selector: None,
+            line_starts: Vec::new(),
+            selection_start: None,
         }
     }
 
@@ -45,104 +43,78 @@ impl TextEditor {
     }
 
     pub fn get_cursor(&self) -> usize {
-        self.cursor_index
+        self.cursor
     }
 
     pub fn set_cursor(&mut self, index: usize) {
-        self.cursor_index = usize::min(index, self.input.len());
+        self.cursor = usize::min(index, self.input.len());
     }
 
     pub fn cursor_add(&mut self, n: usize) {
-        self.cursor_index = usize::min(self.cursor_index + n, self.input.len());
+        self.cursor = usize::min(self.cursor + n, self.input.len());
     }
 
     pub fn cursor_sub(&mut self, n: usize) {
-        self.cursor_index = self.cursor_index.saturating_sub(n);
+        self.cursor = self.cursor.saturating_sub(n);
     }
 
     pub fn push_char(&mut self, c: char) {
-        self.input.insert(self.cursor_index, c);
+        self.input.insert(self.cursor, c);
     }
 
     pub fn push_str(&mut self, s: &str) {
-        self.input.insert_str(self.cursor_index, s);
+        self.input.insert_str(self.cursor, s);
     }
 
     pub fn move_cursor(&mut self, cm: CursorMove, shift: bool) {
+        if shift {
+            if self.selection_start.is_none() {
+                self.selection_start = Some(self.cursor);
+            }
+        } else {
+            self.selection_start = None;
+        }
+
         match cm {
             CursorMove::Forward => {
-                if shift {
-                    match self.selector.as_mut() {
-                        Some(selector) => {
-                            if let Some(c) = self.input[*selector..].chars().next() {
-                                *selector += c.len_utf8();
-                            }
-                        }
-                        None => {
-                            if let Some(c) = self.input[self.cursor_index..].chars().next() {
-                                self.selector = Some(self.cursor_index + c.len_utf8());
-                            }
-                        }
-                    }
-                } else {
-                    let index = self.selector.take().unwrap_or(self.cursor_index);
-                    match self.input[index..].chars().next() {
-                        Some(c) => self.cursor_index = index + c.len_utf8(),
-                        None => self.cursor_index = index,
-                    }
+                if let Some(c) = self.input[self.cursor..].chars().next() {
+                    self.cursor += c.len_utf8();
                 }
             }
             CursorMove::Back => {
-                if shift {
-                    match self.selector.as_mut() {
-                        Some(selector) => {
-                            if let Some(c) = self.input[..*selector].chars().rev().next() {
-                                *selector -= c.len_utf8();
-                            }
-                        }
-                        None => {
-                            if let Some(c) = self.input[..self.cursor_index].chars().rev().next() {
-                                self.selector = Some(self.cursor_index - c.len_utf8());
-                            }
-                        }
-                    }
-                } else {
-                    let index = self.selector.take().unwrap_or(self.cursor_index);
-                    match self.input[..index].chars().rev().next() {
-                        Some(c) => self.cursor_index = index - c.len_utf8(),
-                        None => self.cursor_index = index,
-                    }
+                if let Some(c) = self.input[..self.cursor].chars().rev().next() {
+                    self.cursor -= c.len_utf8();
                 }
             }
             CursorMove::Up => {
-                if self.cursor_line_index == 0 {
-                    self.cursor_index = 0;
+                if self.cursor_line == 0 {
+                    self.cursor = 0;
                 } else {
-                    self.jump_to_line(self.cursor_line_index - 1);
+                    self.jump_to_line(self.cursor_line - 1);
                 }
             }
             CursorMove::Down => {
-                if self.cursor_line_index == self.line_start_indexes.len() - 1 {
-                    self.cursor_index = self.input.len();
+                if self.cursor_line == self.line_starts.len() - 1 {
+                    self.cursor = self.input.len();
                 } else {
-                    self.jump_to_line(self.cursor_line_index + 1);
+                    self.jump_to_line(self.cursor_line + 1);
                 }
             }
-            CursorMove::Start => self.cursor_index = 0,
-            CursorMove::End => self.cursor_index = self.input.len(),
+            CursorMove::Start => self.cursor = 0,
+            CursorMove::End => self.cursor = self.input.len(),
         }
     }
 
     pub fn clear(&mut self) {
         self.input.clear();
-        self.cursor_index = 0;
+        self.cursor = 0;
     }
 
     fn jump_to_line(&mut self, i: usize) {
-        self.cursor_line_index = i;
-        self.cursor_index = self.line_start_indexes[self.cursor_line_index];
+        self.cursor_line = i;
+        self.cursor = self.line_starts[self.cursor_line];
 
-        let mut chars = self.input[self.cursor_index..].chars();
+        let mut chars = self.input[self.cursor..].chars();
         let mut char_count = 0;
         let mut cursor_offset = 0;
 
@@ -163,7 +135,7 @@ impl TextEditor {
             cursor_offset += c.len_utf8();
         }
 
-        self.cursor_index += cursor_offset;
+        self.cursor += cursor_offset;
         self.cursor_line_chars = char_count;
     }
 }
@@ -173,7 +145,7 @@ impl Widget for &mut TextEditor {
     where
         Self: Sized,
     {
-        self.line_start_indexes.clear();
+        self.line_starts.clear();
         self.line_width = area.width;
 
         let mut chars = self.input.char_indices();
@@ -185,26 +157,24 @@ impl Widget for &mut TextEditor {
         char_area.width = 1;
         char_area.height = 1;
 
-        self.line_start_indexes.push(0);
+        self.line_starts.push(0);
 
         loop {
             let Some((i, c)) = chars.next() else {
-                if self.cursor_index == self.input.len() {
-                    self.cursor_line_index = cursor_line;
+                if self.cursor == self.input.len() {
+                    self.cursor_line = cursor_line;
                     Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
+                } else if let Some(selector) = self.selection_start {
+                    if selector == self.input.len() {
+                        Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
+                    }
                 }
                 break;
             };
 
-            let is_cursor = i == self.cursor_index;
-            let is_selected = i
-                >= self
-                    .cursor_index
-                    .min(self.selector.unwrap_or(self.cursor_index))
-                && i <= self
-                    .selector
-                    .unwrap_or(self.cursor_index)
-                    .max(self.cursor_index);
+            let is_cursor = i == self.cursor;
+            let is_selected = i >= self.cursor.min(self.selection_start.unwrap_or(self.cursor))
+                && i <= self.selection_start.unwrap_or(self.cursor).max(self.cursor);
             let style = if is_cursor || is_selected {
                 STYLE_CURSOR
             } else {
@@ -212,7 +182,7 @@ impl Widget for &mut TextEditor {
             };
 
             if is_cursor {
-                self.cursor_line_index = cursor_line;
+                self.cursor_line = cursor_line;
                 self.cursor_line_chars = cursor_line_chars;
             } else {
                 cursor_line_chars += 1;
@@ -220,7 +190,7 @@ impl Widget for &mut TextEditor {
 
             match c {
                 '\n' => {
-                    if is_cursor {
+                    if is_cursor || is_selected {
                         Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
                     }
 
@@ -229,7 +199,7 @@ impl Widget for &mut TextEditor {
                     cursor_line += 1;
                     char_area.y += 1;
                     char_area.x = area.x;
-                    self.line_start_indexes.push(i + c.len_utf8());
+                    self.line_starts.push(i + c.len_utf8());
                 }
                 _ => {
                     Span::styled(&*c.encode_utf8(&mut char_buffer), style).render(char_area, buf);
@@ -243,7 +213,7 @@ impl Widget for &mut TextEditor {
                         cursor_line += 1;
                         char_area.y += 1;
                         char_area.x = area.x;
-                        self.line_start_indexes.push(i + c.len_utf8());
+                        self.line_starts.push(i + c.len_utf8());
                     }
                 }
             }
