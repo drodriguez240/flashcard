@@ -80,96 +80,15 @@ impl TextEditor {
                 if self.cursor_line_index == 0 {
                     self.cursor_index = 0;
                 } else {
-                    self.cursor_line_index -= 1;
-                    self.cursor_index = self.line_start_indexes[self.cursor_line_index];
-
-                    let mut offset = 0;
-                    let mut char_count = 0;
-                    let mut chars = self.input[self.cursor_index..].chars();
-
-                    loop {
-                        let Some(c) = chars.next() else {
-                            break;
-                        };
-
-                        if char_count >= self.cursor_line_chars {
-                            break;
-                        }
-
-                        if c == '\n' {
-                            break;
-                        }
-
-                        offset += c.len_utf8();
-                        char_count += 1;
-                    }
-
-                    self.cursor_index += offset;
-                    self.cursor_line_chars = char_count;
+                    self.jump_to_line(self.cursor_line_index - 1);
                 }
-                // let mut n = 0;
-                // let mut width = 0; // todo: utf8
-                // let mut chars = self.input[..self.cursor].chars().rev();
-                // let mut found_newline = false;
-                // while let Some(c) = chars.next() {
-                //     n += c.len_utf8();
-                //     match c {
-                //         '\n' => {
-                //             if found_newline {
-                //                 break;
-                //             }
-                //             found_newline = true;
-                //         }
-                //         _ => {
-                //             width += 1;
-                //             if width >= self.line_width {
-                //                 break;
-                //             }
-                //         }
-                //     }
-                // }
-                // self.cursor -= n;
             }
             CursorMove::Down => {
                 if self.cursor_line_index == self.line_start_indexes.len() - 1 {
                     self.cursor_index = self.input.len();
                 } else {
-                    self.cursor_line_index += 1;
-                    self.cursor_index = self.line_start_indexes[self.cursor_line_index];
-
-                    let mut offset = 0;
-                    let mut char_count = 0;
-                    let mut chars = self.input[self.cursor_index..].chars();
-
-                    loop {
-                        let Some(c) = chars.next() else {
-                            break;
-                        };
-
-                        if char_count >= self.cursor_line_chars {
-                            break;
-                        }
-
-                        if c == '\n' {
-                            break;
-                        }
-
-                        offset += c.len_utf8();
-                        char_count += 1;
-                    }
-
-                    self.cursor_index += offset;
-                    self.cursor_line_chars = char_count;
+                    self.jump_to_line(self.cursor_line_index + 1);
                 }
-                // let mut n = 0;
-                // let mut chars = self.input[self.cursor..].chars();
-                // while let Some(c) = chars.next() {
-                //     n += c.len_utf8();
-                //     if c == '\n' {
-                //         break;
-                //     }
-                // }
-                // self.cursor += n;
             }
             CursorMove::Start => self.cursor_index = 0,
             CursorMove::End => self.cursor_index = self.input.len(),
@@ -179,6 +98,35 @@ impl TextEditor {
     pub fn clear(&mut self) {
         self.input.clear();
         self.cursor_index = 0;
+    }
+
+    fn jump_to_line(&mut self, i: usize) {
+        self.cursor_line_index = i;
+        self.cursor_index = self.line_start_indexes[self.cursor_line_index];
+
+        let mut chars = self.input[self.cursor_index..].chars();
+        let mut char_count = 0;
+        let mut cursor_offset = 0;
+
+        loop {
+            let Some(c) = chars.next() else {
+                break;
+            };
+
+            if char_count >= self.cursor_line_chars {
+                break;
+            }
+
+            if c == '\n' {
+                break;
+            }
+
+            char_count += 1;
+            cursor_offset += c.len_utf8();
+        }
+
+        self.cursor_index += cursor_offset;
+        self.cursor_line_chars = char_count;
     }
 }
 
@@ -246,131 +194,6 @@ impl Widget for &mut TextEditor {
                         char_area.y += 1;
                         char_area.x = area.x;
                         self.line_start_indexes.push(i + c.len_utf8());
-                    }
-                }
-            }
-        }
-
-        // for (line_index, (line, line_metadata)) in
-        //     LineParser::new(&self.input, area.width as usize).enumerate()
-        // {
-        //     char_area.x = area.x;
-        //     char_area.y = area.y + line_index as u16;
-
-        //     for c in line.chars() {
-        //         let style = if self.cursor == char_index {
-        //             STYLE_CURSOR
-        //         } else {
-        //             STYLE_NONE
-        //         };
-
-        //         if c == '\n' {
-        //             Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
-        //         } else {
-        //             Span::styled(&*c.encode_utf8(&mut char_buffer), style).render(char_area, buf);
-        //         }
-
-        //         char_index += c.len_utf8();
-        //         char_area.x += 1;
-        //     }
-
-        //     if self.cursor == char_index && line.is_empty() {
-        //         // Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
-        //     } else if self.cursor == char_index && !line_metadata.newline {
-        //         // Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
-        //     }
-
-        //     char_index += line_metadata.newline as usize;
-        // }
-    }
-}
-
-struct LineParser<'a> {
-    text: &'a str,
-    line_width: usize,
-    start: usize,
-    chars: std::str::CharIndices<'a>,
-    last_is_newline: bool,
-}
-
-struct LineMetadata {
-    start: usize,
-    newline: bool,
-}
-
-impl<'a> LineParser<'a> {
-    fn new(text: &'a str, line_width: usize) -> Self {
-        Self {
-            text,
-            line_width,
-            start: 0,
-            chars: text.char_indices(),
-            last_is_newline: false,
-        }
-    }
-}
-
-impl<'a> Iterator for LineParser<'a> {
-    type Item = (&'a str, LineMetadata);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.start == self.text.len() {
-            if self.last_is_newline {
-                self.last_is_newline = false;
-                return Some((
-                    "",
-                    LineMetadata {
-                        start: self.start,
-                        newline: false,
-                    },
-                ));
-            } else {
-                return None;
-            }
-        }
-
-        let line_start = 0;
-        let mut width = 0; // todo: utf8
-        loop {
-            let Some((i, c)) = self.chars.next() else {
-                let line = &self.text[self.start..];
-                self.start = self.text.len();
-                return Some((
-                    line,
-                    LineMetadata {
-                        start: line_start,
-                        newline: false,
-                    },
-                ));
-            };
-
-            match c {
-                '\n' => {
-                    let line = &self.text[self.start..i];
-                    self.start = i + 1;
-                    self.last_is_newline = self.start == self.text.len();
-                    return Some((
-                        line,
-                        LineMetadata {
-                            start: line_start,
-                            newline: true,
-                        },
-                    ));
-                }
-                _ => {
-                    width += 1;
-
-                    if width >= self.line_width {
-                        let end = i + c.len_utf8();
-                        let line = &self.text[self.start..end];
-                        self.start = end;
-                        return Some((
-                            line,
-                            LineMetadata {
-                                start: line_start,
-                                newline: false,
-                            },
-                        ));
                     }
                 }
             }
