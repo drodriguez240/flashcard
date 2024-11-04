@@ -3,7 +3,9 @@ use ratatui::{
     style::{Color, Style},
 };
 
+pub const STYLE_NONE: Style = Style::new();
 pub const STYLE_LABEL: Style = Style::new().fg(Color::Gray);
+pub const STYLE_CURSOR: Style = Style::new().bg(Color::Blue);
 
 pub const SHORTCUT_QUIT: Shortcut = Shortcut::new("Quit", "Esc");
 pub const SHORTCUT_MENU: Shortcut = Shortcut::new("Menu", "Tab");

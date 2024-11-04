@@ -1,5 +1,7 @@
 use ratatui::prelude::*;
 
+use crate::utils::{STYLE_CURSOR, STYLE_NONE};
+
 pub struct TextEditor {
     input: String,
     cursor: usize,
@@ -104,45 +106,35 @@ impl Widget for &TextEditor {
     where
         Self: Sized,
     {
-        let mut line_area = Rect {
-            x: area.x,
-            y: area.y,
-            width: area.width,
-            height: 1,
-        };
-        let mut cursor_pos = (0, 0);
-        let mut current_idx = 0;
+        let mut char_index = 0;
+        let mut char_buffer = [0; 4];
+        let mut char_area = area;
+        char_area.width = 1;
+        char_area.height = 1;
 
-        for (line_index, (line, line_split_char_len)) in
+        for (line_index, (line, newline)) in
             LineParser::new(&self.input, area.width as usize).enumerate()
         {
-            // Render line
-            Line::raw(line).render(line_area, buf);
-            line_area.y += 1;
+            char_area.x = area.x;
+            char_area.y = area.y + line_index as u16;
 
-            // Find cursor position
-            let len = line.len() + line_split_char_len;
-            let line_end_idx = current_idx + len;
-            if current_idx <= self.cursor && line_end_idx >= self.cursor {
-                cursor_pos.0 = {
-                    let mut col = 0;
-                    let mut chars = self.input[current_idx..self.cursor].char_indices();
-                    while let Some((i, _)) = chars.next() {
-                        if i >= self.cursor {
-                            break;
-                        }
-                        col += 1;
-                    }
-                    col
+            for c in line.chars() {
+                let style = if self.cursor == char_index {
+                    STYLE_CURSOR
+                } else {
+                    STYLE_NONE
                 };
-                cursor_pos.1 = line_index as u16;
+                Span::styled(&*c.encode_utf8(&mut char_buffer), style).render(char_area, buf);
+                char_index += c.len_utf8();
+                char_area.x += 1;
             }
-            current_idx = line_end_idx;
-        }
 
-        // Render cursor
-        let cursor_cell = &mut buf[(area.x + cursor_pos.0, area.y + cursor_pos.1)];
-        cursor_cell.set_bg(Color::Blue);
+            if self.cursor == char_index {
+                Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
+            }
+
+            char_index += newline as usize;
+        }
     }
 }
 
@@ -167,13 +159,13 @@ impl<'a> LineParser<'a> {
 }
 
 impl<'a> Iterator for LineParser<'a> {
-    type Item = (&'a str, usize);
+    type Item = (&'a str, bool);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.start == self.text.len() {
             if self.last_is_newline {
                 self.last_is_newline = false;
-                return Some(("", 0));
+                return Some(("", false));
             } else {
                 return None;
             }
@@ -184,19 +176,15 @@ impl<'a> Iterator for LineParser<'a> {
             let Some((i, c)) = self.chars.next() else {
                 let line = &self.text[self.start..];
                 self.start = self.text.len();
-                return Some((line, 0));
+                return Some((line, false));
             };
 
             match c {
                 '\n' => {
                     let line = &self.text[self.start..i];
                     self.start = i + 1;
-
-                    if self.start == self.text.len() {
-                        self.last_is_newline = true;
-                    }
-
-                    return Some((line, 1));
+                    self.last_is_newline = self.start == self.text.len();
+                    return Some((line, true));
                 }
                 _ => {
                     width += 1;
@@ -205,7 +193,7 @@ impl<'a> Iterator for LineParser<'a> {
                         let end = i + c.len_utf8();
                         let line = &self.text[self.start..end];
                         self.start = end;
-                        return Some((line, 0));
+                        return Some((line, false));
                     }
                 }
             }
