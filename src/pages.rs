@@ -282,7 +282,7 @@ impl EditCard {
         self.editor.push_str(card.0.as_str());
     }
 
-    pub fn on_render(&self, area: Rect, buf: &mut Buffer) {
+    pub fn on_render(&mut self, area: Rect, buf: &mut Buffer) {
         self.editor.render(area, buf);
     }
 
@@ -317,6 +317,9 @@ impl EditCard {
                 }
                 KeyCode::Char(c) => {
                     match c {
+                        '\t' => {
+                            todo!("convert to spaces");
+                        }
                         's' => {
                             if key.modifiers.contains(KeyModifiers::CONTROL) {
                                 let card = db.get_mut(&self.card_id).unwrap();
