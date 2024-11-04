@@ -1,3 +1,5 @@
+use std::ops::{AddAssign, SubAssign};
+
 use ratatui::prelude::*;
 
 use crate::utils::{STYLE_CURSOR, STYLE_NONE};
@@ -9,6 +11,7 @@ pub struct TextEditor {
     cursor_line_index: usize,
     cursor_line_chars: usize,
     line_start_indexes: Vec<usize>,
+    selector: Option<usize>,
 }
 
 pub enum CursorMove {
@@ -29,6 +32,7 @@ impl TextEditor {
             cursor_line_index: 0,
             cursor_line_chars: 0,
             line_start_indexes: Vec::new(),
+            selector: None,
         }
     }
 
@@ -64,16 +68,50 @@ impl TextEditor {
         self.input.insert_str(self.cursor_index, s);
     }
 
-    pub fn move_cursor(&mut self, cm: CursorMove) {
+    pub fn move_cursor(&mut self, cm: CursorMove, shift: bool) {
         match cm {
             CursorMove::Forward => {
-                if let Some((_, c)) = self.input[self.cursor_index..].char_indices().next() {
-                    self.cursor_index += c.len_utf8();
+                if shift {
+                    match self.selector.as_mut() {
+                        Some(selector) => {
+                            if let Some(c) = self.input[*selector..].chars().next() {
+                                *selector += c.len_utf8();
+                            }
+                        }
+                        None => {
+                            if let Some(c) = self.input[self.cursor_index..].chars().next() {
+                                self.selector = Some(self.cursor_index + c.len_utf8());
+                            }
+                        }
+                    }
+                } else {
+                    let index = self.selector.take().unwrap_or(self.cursor_index);
+                    match self.input[index..].chars().next() {
+                        Some(c) => self.cursor_index = index + c.len_utf8(),
+                        None => self.cursor_index = index,
+                    }
                 }
             }
             CursorMove::Back => {
-                if let Some((_, c)) = self.input[..self.cursor_index].char_indices().rev().next() {
-                    self.cursor_index -= c.len_utf8();
+                if shift {
+                    match self.selector.as_mut() {
+                        Some(selector) => {
+                            if let Some(c) = self.input[..*selector].chars().rev().next() {
+                                *selector -= c.len_utf8();
+                            }
+                        }
+                        None => {
+                            if let Some(c) = self.input[..self.cursor_index].chars().rev().next() {
+                                self.selector = Some(self.cursor_index - c.len_utf8());
+                            }
+                        }
+                    }
+                } else {
+                    let index = self.selector.take().unwrap_or(self.cursor_index);
+                    match self.input[..index].chars().rev().next() {
+                        Some(c) => self.cursor_index = index - c.len_utf8(),
+                        None => self.cursor_index = index,
+                    }
                 }
             }
             CursorMove::Up => {
@@ -158,14 +196,26 @@ impl Widget for &mut TextEditor {
                 break;
             };
 
-            let is_cursor = self.cursor_index == i;
-            let style = if is_cursor {
-                self.cursor_line_index = cursor_line;
-                self.cursor_line_chars = cursor_line_chars;
+            let is_cursor = i == self.cursor_index;
+            let is_selected = i
+                >= self
+                    .cursor_index
+                    .min(self.selector.unwrap_or(self.cursor_index))
+                && i <= self
+                    .selector
+                    .unwrap_or(self.cursor_index)
+                    .max(self.cursor_index);
+            let style = if is_cursor || is_selected {
                 STYLE_CURSOR
             } else {
-                cursor_line_chars += 1;
                 STYLE_NONE
+            };
+
+            if is_cursor {
+                self.cursor_line_index = cursor_line;
+                self.cursor_line_chars = cursor_line_chars;
+            } else {
+                cursor_line_chars += 1;
             };
 
             match c {

@@ -288,31 +288,32 @@ impl EditCard {
 
     pub fn on_input(&mut self, key: KeyEvent, db: &mut Database) -> Action {
         if key.kind == KeyEventKind::Press {
+            let shift = key.modifiers.contains(KeyModifiers::SHIFT);
             match key.code {
                 KeyCode::Esc => return Action::Quit,
                 KeyCode::Tab => return Action::Route(Route::AddCard),
                 KeyCode::Right => {
-                    self.editor.move_cursor(CursorMove::Forward);
+                    self.editor.move_cursor(CursorMove::Forward, shift);
                     return Action::Render;
                 }
                 KeyCode::Left => {
-                    self.editor.move_cursor(CursorMove::Back);
+                    self.editor.move_cursor(CursorMove::Back, shift);
                     return Action::Render;
                 }
                 KeyCode::Up => {
-                    self.editor.move_cursor(CursorMove::Up);
+                    self.editor.move_cursor(CursorMove::Up, shift);
                     return Action::Render;
                 }
                 KeyCode::Down => {
-                    self.editor.move_cursor(CursorMove::Down);
+                    self.editor.move_cursor(CursorMove::Down, shift);
                     return Action::Render;
                 }
                 KeyCode::Home => {
-                    self.editor.move_cursor(CursorMove::Start);
+                    self.editor.move_cursor(CursorMove::Start, shift);
                     return Action::Render;
                 }
                 KeyCode::End => {
-                    self.editor.move_cursor(CursorMove::End);
+                    self.editor.move_cursor(CursorMove::End, shift);
                     return Action::Render;
                 }
                 KeyCode::Char(c) => {
