@@ -146,31 +146,24 @@ impl Widget for &mut TextEditor {
         Self: Sized,
     {
         self.line_starts.clear();
+        self.line_starts.push(0);
         self.line_width = area.width;
 
         let mut chars = self.input.char_indices();
-        let mut line_width = 0;
-        let mut cursor_line = 0;
-        let mut cursor_line_chars = 0;
         let mut char_buffer = [0; 4];
         let mut char_area = area;
         char_area.width = 1;
         char_area.height = 1;
 
+        let mut line_width = 0;
+        let mut line_index = 0;
         let selection_start = self.cursor.min(self.selection_start.unwrap_or(self.cursor));
         let selection_end = self.selection_start.unwrap_or(self.cursor).max(self.cursor);
 
-        self.line_starts.push(0);
-
         loop {
             let Some((i, c)) = chars.next() else {
-                if self.cursor == self.input.len() {
-                    self.cursor_line = cursor_line;
+                if selection_end == self.input.len() {
                     Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
-                } else if let Some(selector) = self.selection_start {
-                    if selector == self.input.len() {
-                        Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
-                    }
                 }
                 break;
             };
@@ -184,40 +177,31 @@ impl Widget for &mut TextEditor {
             };
 
             if is_cursor {
-                self.cursor_line = cursor_line;
-                self.cursor_line_chars = cursor_line_chars;
-            } else {
-                cursor_line_chars += 1;
-            };
+                self.cursor_line = line_index;
+                self.cursor_line_chars = line_width;
+            }
 
-            match c {
+            let next_line = match c {
                 '\n' => {
                     if is_cursor || is_selected {
                         Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
                     }
-
-                    line_width = 0;
-                    cursor_line_chars = 0;
-                    cursor_line += 1;
-                    char_area.y += 1;
-                    char_area.x = area.x;
-                    self.line_starts.push(i + c.len_utf8());
+                    true
                 }
                 _ => {
                     Span::styled(&*c.encode_utf8(&mut char_buffer), style).render(char_area, buf);
-
                     char_area.x += 1;
                     line_width += 1;
-
-                    if line_width >= area.width {
-                        line_width = 0;
-                        cursor_line_chars = 0;
-                        cursor_line += 1;
-                        char_area.y += 1;
-                        char_area.x = area.x;
-                        self.line_starts.push(i + c.len_utf8());
-                    }
+                    line_width >= area.width as usize
                 }
+            };
+
+            if next_line {
+                line_width = 0;
+                line_index += 1;
+                char_area.y += 1;
+                char_area.x = area.x;
+                self.line_starts.push(i + c.len_utf8());
             }
         }
     }
