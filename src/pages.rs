@@ -289,84 +289,31 @@ impl EditCard {
 
     pub fn on_input(&mut self, key: KeyEvent, db: &mut Database) -> Action {
         if key.kind == KeyEventKind::Press {
-            let shift = key.modifiers.contains(KeyModifiers::SHIFT);
             match key.code {
                 KeyCode::Esc => return Action::Quit,
                 KeyCode::Tab => return Action::Route(Route::AddCard),
-                KeyCode::Right => {
-                    self.editor.move_cursor(CursorMove::Forward, shift);
-                    return Action::Render;
-                }
-                KeyCode::Left => {
-                    self.editor.move_cursor(CursorMove::Back, shift);
-                    return Action::Render;
-                }
-                KeyCode::Up => {
-                    self.editor.move_cursor(CursorMove::Up, shift);
-                    return Action::Render;
-                }
-                KeyCode::Down => {
-                    self.editor.move_cursor(CursorMove::Down, shift);
-                    return Action::Render;
-                }
-                KeyCode::Home => {
-                    self.editor.move_cursor(CursorMove::Start, shift);
-                    return Action::Render;
-                }
-                KeyCode::End => {
-                    self.editor.move_cursor(CursorMove::End, shift);
-                    return Action::Render;
-                }
-                KeyCode::Enter => {
-                    self.editor.push_char('\n');
-                    return Action::Render;
-                }
-                KeyCode::Backspace => {
-                    self.editor.delete_back();
-                    return Action::Render;
-                }
-                KeyCode::Delete => {
-                    self.editor.delete_forward();
-                    return Action::Render;
-                }
-                KeyCode::Char(c) => {
-                    match c {
-                        '\t' => {
-                            todo!("convert to spaces?");
-                        }
-                        'a' => {
-                            if key.modifiers.contains(KeyModifiers::CONTROL) {
-                                self.editor.select_all();
-                            } else {
-                                self.editor.push_char(c);
-                            }
-                            return Action::Render;
-                        }
-                        's' => {
-                            if key.modifiers.contains(KeyModifiers::CONTROL) {
-                                let card = db.get_mut(&self.card_id).unwrap();
-                                card.0 = self.editor.as_str().to_owned();
-                                return Action::Route(Route::Review); // todo: go back
-                            } else {
-                                self.editor.push_char(c);
-                                return Action::Render;
-                            }
-                        }
-                        'c' => {
-                            if key.modifiers.contains(KeyModifiers::CONTROL) {
-                                return Action::Route(Route::Review); // todo: go back
-                            } else {
-                                self.editor.push_char(c);
-                                return Action::Render;
-                            }
-                        }
-                        _ => {
-                            self.editor.push_char(c);
-                        }
+                KeyCode::Char('s') => {
+                    if key.modifiers.contains(KeyModifiers::CONTROL) {
+                        let card = db.get_mut(&self.card_id).unwrap();
+                        card.0 = self.editor.as_str().to_owned();
+                        return Action::Route(Route::Review); // todo: go back
+                    } else {
+                        self.editor.push_char('s');
+                        return Action::Render;
                     }
+                }
+                KeyCode::Char('c') => {
+                    if key.modifiers.contains(KeyModifiers::CONTROL) {
+                        return Action::Route(Route::Review); // todo: go back
+                    } else {
+                        self.editor.push_char('c');
+                        return Action::Render;
+                    }
+                }
+                _ => {
+                    self.editor.input(key.code, key.modifiers);
                     return Action::Render;
                 }
-                _ => {}
             }
         }
 

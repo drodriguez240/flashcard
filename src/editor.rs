@@ -1,3 +1,4 @@
+use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::prelude::*;
 
 use crate::utils::{STYLE_CURSOR, STYLE_NONE};
@@ -133,6 +134,57 @@ impl TextEditor {
     pub fn clear(&mut self) {
         self.input.clear();
         self.cursor_index = 0;
+    }
+
+    pub fn input(&mut self, key_pressed: KeyCode, key_modifiers: KeyModifiers) {
+        let shift = key_modifiers.contains(KeyModifiers::SHIFT);
+        let ctrl = key_modifiers.contains(KeyModifiers::CONTROL);
+
+        match key_pressed {
+            KeyCode::Right => {
+                self.move_cursor(CursorMove::Forward, shift);
+            }
+            KeyCode::Left => {
+                self.move_cursor(CursorMove::Back, shift);
+            }
+            KeyCode::Up => {
+                self.move_cursor(CursorMove::Up, shift);
+            }
+            KeyCode::Down => {
+                self.move_cursor(CursorMove::Down, shift);
+            }
+            KeyCode::Home => {
+                self.move_cursor(CursorMove::Start, shift);
+            }
+            KeyCode::End => {
+                self.move_cursor(CursorMove::End, shift);
+            }
+            KeyCode::Enter => {
+                self.push_char('\n');
+            }
+            KeyCode::Backspace => {
+                self.delete_back();
+            }
+            KeyCode::Delete => {
+                self.delete_forward();
+            }
+            KeyCode::Char(c) => match c {
+                '\t' => {
+                    todo!("convert to spaces?");
+                }
+                'a' => {
+                    if ctrl {
+                        self.select_all();
+                    } else {
+                        self.push_char(c);
+                    }
+                }
+                _ => {
+                    self.push_char(c);
+                }
+            },
+            _ => {}
+        }
     }
 
     fn delete_selection(&mut self, selection_start: usize) {
