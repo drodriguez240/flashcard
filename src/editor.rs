@@ -157,6 +157,9 @@ impl Widget for &mut TextEditor {
         char_area.width = 1;
         char_area.height = 1;
 
+        let selection_start = self.cursor.min(self.selection_start.unwrap_or(self.cursor));
+        let selection_end = self.selection_start.unwrap_or(self.cursor).max(self.cursor);
+
         self.line_starts.push(0);
 
         loop {
@@ -173,8 +176,7 @@ impl Widget for &mut TextEditor {
             };
 
             let is_cursor = i == self.cursor;
-            let is_selected = i >= self.cursor.min(self.selection_start.unwrap_or(self.cursor))
-                && i <= self.selection_start.unwrap_or(self.cursor).max(self.cursor);
+            let is_selected = i >= selection_start && i <= selection_end;
             let style = if is_cursor || is_selected {
                 STYLE_CURSOR
             } else {
