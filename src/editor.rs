@@ -253,19 +253,23 @@ impl Widget for &mut TextEditor {
         }
 
         let height = area.height as usize;
-        let skip_count = if self.cursor_line_index < height {
-            0
-        } else {
-            self.cursor_line_index - height + 1
-        };
-        self.scroll = skip_count;
+        if self.cursor_line_index > self.scroll {
+            let height_diff = self.cursor_line_index - self.scroll;
+            let height = height.saturating_sub(1);
+            if height_diff > height {
+                self.scroll += height_diff - height;
+            }
+        } else if self.scroll > self.cursor_line_index {
+            let height_diff = self.scroll - self.cursor_line_index;
+            self.scroll -= height_diff;
+        }
 
         let mut line_area = area;
         line_area.height = 1;
 
         self.line_spans
             .drain(..)
-            .skip(skip_count)
+            .skip(self.scroll)
             .take(height)
             .for_each(|line| {
                 line.render(line_area, buf);
