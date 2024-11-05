@@ -261,10 +261,15 @@ impl Widget for &mut TextEditor {
                     }
                     true
                 }
+                // TODO: what about invisible/other whitespace chars?
                 _ => {
+                    let char_width = unicode_width::UnicodeWidthChar::width(c).unwrap_or(1);
+                    char_area.width = char_width as u16;
+
                     Span::styled(&*c.encode_utf8(&mut char_buffer), style).render(char_area, buf);
-                    char_area.x += 1;
-                    line_width += 1;
+
+                    char_area.x += char_width as u16;
+                    line_width += char_width;
                     line_width >= area.width as usize
                 }
             };
