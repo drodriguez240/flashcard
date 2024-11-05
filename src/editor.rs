@@ -6,9 +6,9 @@ pub struct TextEditor {
     input: String,
     line_width: u16,
     cursor_index: usize,
-    cursor_line: usize,
     cursor_column: usize,
-    line_starts: Vec<usize>,
+    cursor_line_index: usize,
+    line_start_indexes: Vec<usize>,
     selection_start: Option<usize>,
 }
 
@@ -27,9 +27,9 @@ impl TextEditor {
             input: String::new(),
             line_width: 0,
             cursor_index: 0,
-            cursor_line: 0,
             cursor_column: 0,
-            line_starts: Vec::new(),
+            cursor_line_index: 0,
+            line_start_indexes: Vec::new(),
             selection_start: None,
         }
     }
@@ -54,6 +54,7 @@ impl TextEditor {
         self.cursor_index += s.len();
     }
 
+    // TODO: maintain metadata between cursor moves?
     pub fn move_cursor(&mut self, cm: CursorMove, shift: bool) {
         if shift {
             if self.selection_start.is_none() {
@@ -67,29 +68,64 @@ impl TextEditor {
             CursorMove::Forward => {
                 if let Some(c) = self.input[self.cursor_index..].chars().next() {
                     self.cursor_index += c.len_utf8();
+                    // self.cursor_column += 1;
+
+                    // if let Some(next_line_index) = self
+                    //     .line_start_indexes
+                    //     .get(self.cursor_line_index + 1)
+                    //     .copied()
+                    // {
+                    //     if self.cursor_index == next_line_index {
+                    //         self.cursor_line_index += 1;
+                    //         self.cursor_column = 0;
+                    //     }
+                    // }
                 }
             }
             CursorMove::Back => {
                 if let Some(c) = self.input[..self.cursor_index].chars().rev().next() {
                     self.cursor_index -= c.len_utf8();
+
+                    // if self.cursor_column == 0 {
+                    //     self.cursor_line_index -= 1;
+                    //     self.cursor_column = self.input
+                    //         [self.line_start_indexes[self.cursor_line_index]..self.cursor_index]
+                    //         .chars()
+                    //         .count();
+                    // }
                 }
             }
             CursorMove::Up => {
-                if self.cursor_line == 0 {
+                if self.cursor_line_index == 0 {
                     self.cursor_index = 0;
+                    // self.cursor_column = 0;
                 } else {
-                    self.jump_to_line(self.cursor_line - 1);
+                    self.jump_to_line(self.cursor_line_index - 1);
                 }
             }
             CursorMove::Down => {
-                if self.cursor_line == self.line_starts.len() - 1 {
+                if self.cursor_line_index == self.line_start_indexes.len() - 1 {
                     self.cursor_index = self.input.len();
+                    // self.cursor_column = self.input
+                    //     [self.line_start_indexes[self.cursor_line_index]..self.cursor_index]
+                    //     .chars()
+                    //     .count();
                 } else {
-                    self.jump_to_line(self.cursor_line + 1);
+                    self.jump_to_line(self.cursor_line_index + 1);
                 }
             }
-            CursorMove::Start => self.cursor_index = 0,
-            CursorMove::End => self.cursor_index = self.input.len(),
+            CursorMove::Start => {
+                self.cursor_index = 0;
+                // self.cursor_column = 0;
+                // self.cursor_line_index = 0;
+            }
+            CursorMove::End => {
+                self.cursor_index = self.input.len();
+                // self.cursor_column = self.input
+                //     [self.line_start_indexes[self.cursor_line_index]..self.cursor_index]
+                //     .chars()
+                //     .count();
+            }
         }
     }
 
@@ -135,8 +171,8 @@ impl TextEditor {
     }
 
     fn jump_to_line(&mut self, i: usize) {
-        self.cursor_line = i;
-        self.cursor_index = self.line_starts[self.cursor_line];
+        self.cursor_line_index = i;
+        self.cursor_index = self.line_start_indexes[self.cursor_line_index];
 
         let mut chars = self.input[self.cursor_index..].chars();
         let mut char_count = 0;
@@ -169,9 +205,11 @@ impl Widget for &mut TextEditor {
     where
         Self: Sized,
     {
-        self.line_starts.clear();
-        self.line_starts.push(0);
+        self.cursor_column = 0;
+        self.cursor_line_index = 0;
         self.line_width = area.width;
+        self.line_start_indexes.clear();
+        self.line_start_indexes.push(0);
 
         let mut chars = self.input.char_indices();
         let mut char_buffer = [0; 4];
@@ -191,9 +229,15 @@ impl Widget for &mut TextEditor {
 
         loop {
             let Some((i, c)) = chars.next() else {
+                if self.cursor_index == self.input.len() {
+                    self.cursor_line_index = line_index;
+                    self.cursor_column = line_width;
+                }
+
                 if selection_end == self.input.len() {
                     Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
                 }
+
                 break;
             };
 
@@ -206,7 +250,7 @@ impl Widget for &mut TextEditor {
             };
 
             if is_cursor {
-                self.cursor_line = line_index;
+                self.cursor_line_index = line_index;
                 self.cursor_column = line_width;
             }
 
@@ -230,7 +274,7 @@ impl Widget for &mut TextEditor {
                 line_index += 1;
                 char_area.y += 1;
                 char_area.x = area.x;
-                self.line_starts.push(i + c.len_utf8());
+                self.line_start_indexes.push(i + c.len_utf8());
             }
         }
     }
