@@ -102,6 +102,11 @@ impl TextEditor {
         }
     }
 
+    pub fn select_all(&mut self) {
+        self.cursor_index = 0;
+        self.selection_start = Some(self.input.len());
+    }
+
     pub fn delete_back(&mut self) {
         match self.selection_start.take() {
             Some(start) => self.delete_selection(start),

@@ -336,8 +336,7 @@ impl EditCard {
                         }
                         'a' => {
                             if key.modifiers.contains(KeyModifiers::CONTROL) {
-                                self.editor.move_cursor(CursorMove::Start, false);
-                                self.editor.move_cursor(CursorMove::End, true);
+                                self.editor.select_all();
                             } else {
                                 self.editor.push_char(c);
                             }
