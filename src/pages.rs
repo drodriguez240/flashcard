@@ -280,6 +280,7 @@ impl EditCard {
         self.card_id = card_id;
         let card = db.get(&card_id).unwrap();
         self.editor.push_str(card.0.as_str());
+        self.editor.move_cursor(CursorMove::Start, false);
     }
 
     pub fn on_render(&mut self, area: Rect, buf: &mut Buffer) {
@@ -316,10 +317,31 @@ impl EditCard {
                     self.editor.move_cursor(CursorMove::End, shift);
                     return Action::Render;
                 }
+                KeyCode::Enter => {
+                    self.editor.push_char('\n');
+                    return Action::Render;
+                }
+                KeyCode::Backspace => {
+                    self.editor.delete_back();
+                    return Action::Render;
+                }
+                KeyCode::Delete => {
+                    self.editor.delete_forward();
+                    return Action::Render;
+                }
                 KeyCode::Char(c) => {
                     match c {
                         '\t' => {
-                            todo!("convert to spaces");
+                            todo!("convert to spaces?");
+                        }
+                        'a' => {
+                            if key.modifiers.contains(KeyModifiers::CONTROL) {
+                                self.editor.move_cursor(CursorMove::Start, false);
+                                self.editor.move_cursor(CursorMove::End, true);
+                            } else {
+                                self.editor.push_char(c);
+                            }
+                            return Action::Render;
                         }
                         's' => {
                             if key.modifiers.contains(KeyModifiers::CONTROL) {
@@ -328,7 +350,6 @@ impl EditCard {
                                 return Action::Route(Route::Review); // todo: go back
                             } else {
                                 self.editor.push_char(c);
-                                self.editor.cursor_add(c.len_utf8());
                                 return Action::Render;
                             }
                         }
@@ -337,13 +358,11 @@ impl EditCard {
                                 return Action::Route(Route::Review); // todo: go back
                             } else {
                                 self.editor.push_char(c);
-                                self.editor.cursor_add(c.len_utf8());
                                 return Action::Render;
                             }
                         }
                         _ => {
                             self.editor.push_char(c);
-                            self.editor.cursor_add(c.len_utf8());
                         }
                     }
                     return Action::Render;

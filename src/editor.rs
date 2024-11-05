@@ -5,9 +5,9 @@ use crate::utils::{STYLE_CURSOR, STYLE_NONE};
 pub struct TextEditor {
     input: String,
     line_width: u16,
-    cursor: usize,
+    cursor_index: usize,
     cursor_line: usize,
-    cursor_line_chars: usize,
+    cursor_column: usize,
     line_starts: Vec<usize>,
     selection_start: Option<usize>,
 }
@@ -26,50 +26,38 @@ impl TextEditor {
         Self {
             input: String::new(),
             line_width: 0,
-            cursor: 0,
+            cursor_index: 0,
             cursor_line: 0,
-            cursor_line_chars: 0,
+            cursor_column: 0,
             line_starts: Vec::new(),
             selection_start: None,
         }
-    }
-
-    pub fn len(&self) -> usize {
-        self.input.len()
     }
 
     pub fn as_str(&self) -> &str {
         self.input.as_str()
     }
 
-    pub fn get_cursor(&self) -> usize {
-        self.cursor
-    }
-
-    pub fn set_cursor(&mut self, index: usize) {
-        self.cursor = usize::min(index, self.input.len());
-    }
-
-    pub fn cursor_add(&mut self, n: usize) {
-        self.cursor = usize::min(self.cursor + n, self.input.len());
-    }
-
-    pub fn cursor_sub(&mut self, n: usize) {
-        self.cursor = self.cursor.saturating_sub(n);
-    }
-
     pub fn push_char(&mut self, c: char) {
-        self.input.insert(self.cursor, c);
+        if let Some(start) = self.selection_start.take() {
+            self.delete_selection(start);
+        }
+        self.input.insert(self.cursor_index, c);
+        self.cursor_index += c.len_utf8();
     }
 
     pub fn push_str(&mut self, s: &str) {
-        self.input.insert_str(self.cursor, s);
+        if let Some(start) = self.selection_start.take() {
+            self.delete_selection(start);
+        }
+        self.input.insert_str(self.cursor_index, s);
+        self.cursor_index += s.len();
     }
 
     pub fn move_cursor(&mut self, cm: CursorMove, shift: bool) {
         if shift {
             if self.selection_start.is_none() {
-                self.selection_start = Some(self.cursor);
+                self.selection_start = Some(self.cursor_index);
             }
         } else {
             self.selection_start = None;
@@ -77,44 +65,80 @@ impl TextEditor {
 
         match cm {
             CursorMove::Forward => {
-                if let Some(c) = self.input[self.cursor..].chars().next() {
-                    self.cursor += c.len_utf8();
+                if let Some(c) = self.input[self.cursor_index..].chars().next() {
+                    self.cursor_index += c.len_utf8();
                 }
             }
             CursorMove::Back => {
-                if let Some(c) = self.input[..self.cursor].chars().rev().next() {
-                    self.cursor -= c.len_utf8();
+                if let Some(c) = self.input[..self.cursor_index].chars().rev().next() {
+                    self.cursor_index -= c.len_utf8();
                 }
             }
             CursorMove::Up => {
                 if self.cursor_line == 0 {
-                    self.cursor = 0;
+                    self.cursor_index = 0;
                 } else {
                     self.jump_to_line(self.cursor_line - 1);
                 }
             }
             CursorMove::Down => {
                 if self.cursor_line == self.line_starts.len() - 1 {
-                    self.cursor = self.input.len();
+                    self.cursor_index = self.input.len();
                 } else {
                     self.jump_to_line(self.cursor_line + 1);
                 }
             }
-            CursorMove::Start => self.cursor = 0,
-            CursorMove::End => self.cursor = self.input.len(),
+            CursorMove::Start => self.cursor_index = 0,
+            CursorMove::End => self.cursor_index = self.input.len(),
+        }
+    }
+
+    pub fn delete_back(&mut self) {
+        match self.selection_start.take() {
+            Some(start) => self.delete_selection(start),
+            None => {
+                if let Some(c) = self.input[..self.cursor_index].chars().rev().next() {
+                    self.cursor_index -= c.len_utf8();
+                    self.input.remove(self.cursor_index);
+                }
+            }
+        }
+    }
+
+    pub fn delete_forward(&mut self) {
+        match self.selection_start.take() {
+            Some(start) => self.delete_selection(start),
+            None => {
+                if self.input[self.cursor_index..].chars().next().is_some() {
+                    self.input.remove(self.cursor_index);
+                }
+            }
         }
     }
 
     pub fn clear(&mut self) {
         self.input.clear();
-        self.cursor = 0;
+        self.cursor_index = 0;
+    }
+
+    fn delete_selection(&mut self, selection_start: usize) {
+        let start = usize::min(self.cursor_index, selection_start);
+        let end = {
+            let end = usize::max(self.cursor_index, selection_start);
+            match self.input[end..].chars().next() {
+                Some(c) => end + c.len_utf8(),
+                None => end,
+            }
+        };
+        self.input.replace_range(start..end, "");
+        self.cursor_index = start;
     }
 
     fn jump_to_line(&mut self, i: usize) {
         self.cursor_line = i;
-        self.cursor = self.line_starts[self.cursor_line];
+        self.cursor_index = self.line_starts[self.cursor_line];
 
-        let mut chars = self.input[self.cursor..].chars();
+        let mut chars = self.input[self.cursor_index..].chars();
         let mut char_count = 0;
         let mut cursor_offset = 0;
 
@@ -123,7 +147,7 @@ impl TextEditor {
                 break;
             };
 
-            if char_count >= self.cursor_line_chars {
+            if char_count >= self.cursor_column {
                 break;
             }
 
@@ -135,8 +159,8 @@ impl TextEditor {
             cursor_offset += c.len_utf8();
         }
 
-        self.cursor += cursor_offset;
-        self.cursor_line_chars = char_count;
+        self.cursor_index += cursor_offset;
+        self.cursor_column = char_count;
     }
 }
 
@@ -157,8 +181,13 @@ impl Widget for &mut TextEditor {
 
         let mut line_width = 0;
         let mut line_index = 0;
-        let selection_start = self.cursor.min(self.selection_start.unwrap_or(self.cursor));
-        let selection_end = self.selection_start.unwrap_or(self.cursor).max(self.cursor);
+        let selection_start = self
+            .cursor_index
+            .min(self.selection_start.unwrap_or(self.cursor_index));
+        let selection_end = self
+            .selection_start
+            .unwrap_or(self.cursor_index)
+            .max(self.cursor_index);
 
         loop {
             let Some((i, c)) = chars.next() else {
@@ -168,7 +197,7 @@ impl Widget for &mut TextEditor {
                 break;
             };
 
-            let is_cursor = i == self.cursor;
+            let is_cursor = i == self.cursor_index;
             let is_selected = i >= selection_start && i <= selection_end;
             let style = if is_cursor || is_selected {
                 STYLE_CURSOR
@@ -178,7 +207,7 @@ impl Widget for &mut TextEditor {
 
             if is_cursor {
                 self.cursor_line = line_index;
-                self.cursor_line_chars = line_width;
+                self.cursor_column = line_width;
             }
 
             let next_line = match c {
