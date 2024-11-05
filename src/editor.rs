@@ -11,6 +11,7 @@ pub struct TextEditor {
     line_start_indexes: Vec<usize>,
     selection_start: Option<usize>,
     scroll: usize,
+    line_spans: Vec<Line<'static>>,
 }
 
 pub enum CursorMove {
@@ -33,6 +34,7 @@ impl TextEditor {
             line_start_indexes: Vec::new(),
             selection_start: None,
             scroll: 0,
+            line_spans: Vec::new(),
         }
     }
 
@@ -70,37 +72,16 @@ impl TextEditor {
             CursorMove::Forward => {
                 if let Some(c) = self.input[self.cursor_index..].chars().next() {
                     self.cursor_index += c.len_utf8();
-                    // self.cursor_column += 1;
-
-                    // if let Some(next_line_index) = self
-                    //     .line_start_indexes
-                    //     .get(self.cursor_line_index + 1)
-                    //     .copied()
-                    // {
-                    //     if self.cursor_index == next_line_index {
-                    //         self.cursor_line_index += 1;
-                    //         self.cursor_column = 0;
-                    //     }
-                    // }
                 }
             }
             CursorMove::Back => {
                 if let Some(c) = self.input[..self.cursor_index].chars().rev().next() {
                     self.cursor_index -= c.len_utf8();
-
-                    // if self.cursor_column == 0 {
-                    //     self.cursor_line_index -= 1;
-                    //     self.cursor_column = self.input
-                    //         [self.line_start_indexes[self.cursor_line_index]..self.cursor_index]
-                    //         .chars()
-                    //         .count();
-                    // }
                 }
             }
             CursorMove::Up => {
                 if self.cursor_line_index == 0 {
                     self.cursor_index = 0;
-                    // self.cursor_column = 0;
                 } else {
                     self.jump_to_line(self.cursor_line_index - 1);
                 }
@@ -108,25 +89,15 @@ impl TextEditor {
             CursorMove::Down => {
                 if self.cursor_line_index == self.line_start_indexes.len() - 1 {
                     self.cursor_index = self.input.len();
-                    // self.cursor_column = self.input
-                    //     [self.line_start_indexes[self.cursor_line_index]..self.cursor_index]
-                    //     .chars()
-                    //     .count();
                 } else {
                     self.jump_to_line(self.cursor_line_index + 1);
                 }
             }
             CursorMove::Start => {
                 self.cursor_index = 0;
-                // self.cursor_column = 0;
-                // self.cursor_line_index = 0;
             }
             CursorMove::End => {
                 self.cursor_index = self.input.len();
-                // self.cursor_column = self.input
-                //     [self.line_start_indexes[self.cursor_line_index]..self.cursor_index]
-                //     .chars()
-                //     .count();
             }
         }
     }
@@ -207,16 +178,10 @@ impl Widget for &mut TextEditor {
     where
         Self: Sized,
     {
+        self.line_start_indexes.clear();
         self.cursor_column = 0;
         self.cursor_line_index = 0;
         self.line_width = area.width;
-        self.line_start_indexes.clear();
-
-        let mut chars = self.input.char_indices();
-        let mut char_buffer = [0; 4];
-        let mut char_area = area;
-        char_area.width = 1;
-        char_area.height = 1;
 
         let mut line_width = 0;
         let mut line_index = 0;
@@ -229,7 +194,9 @@ impl Widget for &mut TextEditor {
             .max(self.cursor_index);
 
         self.line_start_indexes.push(0);
-        let mut lines = vec![Line::default()];
+        self.line_spans.push(Line::default());
+
+        let mut chars = self.input.char_indices();
 
         loop {
             let Some((i, c)) = chars.next() else {
@@ -240,7 +207,7 @@ impl Widget for &mut TextEditor {
 
                 if selection_end == self.input.len() {
                     let span = Span::styled(" ", STYLE_CURSOR);
-                    lines[line_index].push_span(span);
+                    self.line_spans[line_index].push_span(span);
                 }
 
                 break;
@@ -263,19 +230,15 @@ impl Widget for &mut TextEditor {
                 '\n' => {
                     if is_cursor || is_selected {
                         let span = Span::styled(" ", STYLE_CURSOR);
-                        lines[line_index].push_span(span);
+                        self.line_spans[line_index].push_span(span);
                     }
                     true
                 }
                 // TODO: what about invisible/other whitespace chars?
                 _ => {
                     let char_width = unicode_width::UnicodeWidthChar::width(c).unwrap_or(1);
-                    char_area.width = char_width as u16;
-
                     let span = Span::styled(c.to_string(), style);
-                    lines[line_index].push_span(span);
-
-                    char_area.x += char_width as u16;
+                    self.line_spans[line_index].push_span(span);
                     line_width += char_width;
                     line_width >= area.width as usize
                 }
@@ -284,10 +247,8 @@ impl Widget for &mut TextEditor {
             if next_line {
                 line_width = 0;
                 line_index += 1;
-                char_area.y += 1;
-                char_area.x = area.x;
+                self.line_spans.push(Line::default());
                 self.line_start_indexes.push(i + c.len_utf8());
-                lines.push(Line::default());
             }
         }
 
@@ -302,8 +263,8 @@ impl Widget for &mut TextEditor {
         let mut line_area = area;
         line_area.height = 1;
 
-        lines
-            .into_iter()
+        self.line_spans
+            .drain(..)
             .skip(skip_count)
             .take(height)
             .for_each(|line| {
