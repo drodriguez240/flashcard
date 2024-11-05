@@ -10,6 +10,7 @@ pub struct TextEditor {
     cursor_line_index: usize,
     line_start_indexes: Vec<usize>,
     selection_start: Option<usize>,
+    scroll: usize,
 }
 
 pub enum CursorMove {
@@ -31,6 +32,7 @@ impl TextEditor {
             cursor_line_index: 0,
             line_start_indexes: Vec::new(),
             selection_start: None,
+            scroll: 0,
         }
     }
 
@@ -209,7 +211,6 @@ impl Widget for &mut TextEditor {
         self.cursor_line_index = 0;
         self.line_width = area.width;
         self.line_start_indexes.clear();
-        self.line_start_indexes.push(0);
 
         let mut chars = self.input.char_indices();
         let mut char_buffer = [0; 4];
@@ -227,6 +228,9 @@ impl Widget for &mut TextEditor {
             .unwrap_or(self.cursor_index)
             .max(self.cursor_index);
 
+        self.line_start_indexes.push(0);
+        let mut lines = vec![Line::default()];
+
         loop {
             let Some((i, c)) = chars.next() else {
                 if self.cursor_index == self.input.len() {
@@ -235,7 +239,8 @@ impl Widget for &mut TextEditor {
                 }
 
                 if selection_end == self.input.len() {
-                    Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
+                    let span = Span::styled(" ", STYLE_CURSOR);
+                    lines[line_index].push_span(span);
                 }
 
                 break;
@@ -257,7 +262,8 @@ impl Widget for &mut TextEditor {
             let next_line = match c {
                 '\n' => {
                     if is_cursor || is_selected {
-                        Span::styled(" ", STYLE_CURSOR).render(char_area, buf);
+                        let span = Span::styled(" ", STYLE_CURSOR);
+                        lines[line_index].push_span(span);
                     }
                     true
                 }
@@ -266,7 +272,8 @@ impl Widget for &mut TextEditor {
                     let char_width = unicode_width::UnicodeWidthChar::width(c).unwrap_or(1);
                     char_area.width = char_width as u16;
 
-                    Span::styled(&*c.encode_utf8(&mut char_buffer), style).render(char_area, buf);
+                    let span = Span::styled(c.to_string(), style);
+                    lines[line_index].push_span(span);
 
                     char_area.x += char_width as u16;
                     line_width += char_width;
@@ -280,7 +287,28 @@ impl Widget for &mut TextEditor {
                 char_area.y += 1;
                 char_area.x = area.x;
                 self.line_start_indexes.push(i + c.len_utf8());
+                lines.push(Line::default());
             }
         }
+
+        let height = area.height as usize;
+        let skip_count = if self.cursor_line_index < height {
+            0
+        } else {
+            self.cursor_line_index - height + 1
+        };
+        self.scroll = skip_count;
+
+        let mut line_area = area;
+        line_area.height = 1;
+
+        lines
+            .into_iter()
+            .skip(skip_count)
+            .take(height)
+            .for_each(|line| {
+                line.render(line_area, buf);
+                line_area.y += 1;
+            });
     }
 }
