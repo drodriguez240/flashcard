@@ -105,16 +105,15 @@ impl<'a> StatefulWidget for Markup<'a> {
 
         lines.pop();
 
-        let skip_count = if lines.len() <= height {
-            0
+        if lines.len() <= height {
+            *scroll = 0;
         } else {
-            (*scroll).min(lines.len() - height)
+            *scroll = usize::min(*scroll, lines.len() - height);
         };
-        *scroll = skip_count;
 
         lines
             .into_iter()
-            .skip(skip_count)
+            .skip(*scroll)
             .take(height)
             .for_each(|line| {
                 line.render(area, buf);

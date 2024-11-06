@@ -59,7 +59,6 @@ impl TextEditor {
         self.cursor_index += s.len();
     }
 
-    // TODO: maintain metadata between cursor moves?
     pub fn move_cursor(&mut self, cm: CursorMove, shift: bool) {
         if shift {
             if self.selection_start.is_none() {
@@ -169,9 +168,7 @@ impl TextEditor {
                 self.delete_forward();
             }
             KeyCode::Char(c) => match c {
-                '\t' => {
-                    todo!("convert to spaces?");
-                }
+                // TODO: whitespace/tabs
                 'a' => {
                     if ctrl {
                         self.select_all();
@@ -202,31 +199,33 @@ impl TextEditor {
 
     fn jump_to_line(&mut self, i: usize) {
         self.cursor_line_index = i;
-        self.cursor_index = self.line_start_indexes[self.cursor_line_index];
+        self.cursor_index = self.line_start_indexes[i];
 
         let mut chars = self.input[self.cursor_index..].chars();
-        let mut char_count = 0;
-        let mut cursor_offset = 0;
+        let mut column = 0;
+        let mut offset = 0;
 
         loop {
+            if column >= self.cursor_column {
+                break;
+            }
+
             let Some(c) = chars.next() else {
                 break;
             };
 
-            if char_count >= self.cursor_column {
-                break;
-            }
+            // TODO: whitespace/tabs
 
             if c == '\n' {
                 break;
             }
 
-            char_count += 1;
-            cursor_offset += c.len_utf8();
+            column += unicode_width::UnicodeWidthChar::width(c).unwrap_or(1);
+            offset += c.len_utf8();
         }
 
-        self.cursor_index += cursor_offset;
-        self.cursor_column = char_count;
+        self.cursor_column = column;
+        self.cursor_index += offset;
     }
 }
 
@@ -291,7 +290,7 @@ impl Widget for &mut TextEditor {
                     }
                     true
                 }
-                // TODO: what about invisible/other whitespace chars?
+                // TODO: whitespace/tabs
                 _ => {
                     let char_width = unicode_width::UnicodeWidthChar::width(c).unwrap_or(1);
                     let span = Span::styled(c.to_string(), style);
