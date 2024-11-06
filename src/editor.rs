@@ -133,6 +133,13 @@ impl TextEditor {
     pub fn clear(&mut self) {
         self.input.clear();
         self.cursor_index = 0;
+        self.cursor_column = 0;
+        self.cursor_line_index = 0;
+        self.selection_start = None;
+        self.line_width = 0;
+        self.line_start_indexes.clear();
+        self.line_spans.clear();
+        self.scroll = 0;
     }
 
     pub fn input(&mut self, key_pressed: KeyCode, key_modifiers: KeyModifiers) {
