@@ -87,4 +87,5 @@ In aliquet dui sapien, ut semper elit sodales sed. Proin quis libero luctus libe
 "#,
         ),
     );
+    db.insert(CardId(3), Card::new("this\tis\ta\tparagraph\twith\ttabs"));
 }

@@ -19,20 +19,24 @@ impl<'a> Markup<'a> {
     }
 }
 
-impl<'a> StatefulWidget for &mut Markup<'a> {
+impl<'a> StatefulWidget for Markup<'a> {
     type State = usize;
 
     fn render(self, mut area: Rect, buf: &mut Buffer, scroll: &mut Self::State) {
         let width = area.width as usize;
         let height = area.height as usize;
-        let mut lines: Vec<Line> = Vec::new();
+        let mut lines = Vec::new();
 
         for block in BlockParser::new(&self.text) {
             match block {
                 BlockElement::Paragraph { alignment, text } => {
                     let ansi_markup = InlineParser::new(text).into_ansi().replace('\n', " ");
                     let mut ansi_parser = AnsiParser::new("");
-                    for wrapped_line in textwrap::fill(&ansi_markup, width).lines() {
+                    let mut wrap_opts = textwrap::Options::new(width);
+                    wrap_opts.word_splitter = textwrap::WordSplitter::NoHyphenation;
+                    wrap_opts.wrap_algorithm = textwrap::WrapAlgorithm::FirstFit;
+
+                    for wrapped_line in textwrap::fill(&ansi_markup, wrap_opts).lines() {
                         let mut line = Line::default().alignment(alignment);
                         ansi_parser.continue_with(wrapped_line);
                         for (tag, span) in &mut ansi_parser {
@@ -65,7 +69,7 @@ impl<'a> StatefulWidget for &mut Markup<'a> {
                     for code_line in LinesWithEndings::from(text) {
                         match highlighter.highlight_line(code_line, &SYNTAX_SET) {
                             Ok(spans) => {
-                                let mut line: Line<'_> = Line::default();
+                                let mut line = Line::default();
                                 for (style, span) in spans {
                                     let mut modifiers = Modifier::empty();
                                     if style.font_style.contains(FontStyle::BOLD) {
@@ -101,16 +105,15 @@ impl<'a> StatefulWidget for &mut Markup<'a> {
 
         lines.pop();
 
-        let skip_count = if lines.len() <= height {
-            0
+        if lines.len() <= height {
+            *scroll = 0;
         } else {
-            (*scroll).min(lines.len() - height)
+            *scroll = usize::min(*scroll, lines.len() - height);
         };
-        *scroll = skip_count;
 
         lines
             .into_iter()
-            .skip(skip_count)
+            .skip(*scroll)
             .take(height)
             .for_each(|line| {
                 line.render(area, buf);

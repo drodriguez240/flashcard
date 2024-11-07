@@ -1,5 +1,6 @@
 mod app;
 mod database;
+mod editor;
 mod markup;
 mod pages;
 mod utils;

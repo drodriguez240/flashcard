@@ -261,7 +261,7 @@ dependencies = [
  "ratatui",
  "syntect",
  "textwrap",
- "tui-textarea",
+ "unicode-width 0.2.0",
 ]
 
 [[package]]
@@ -727,17 +727,6 @@ checksum = "3f252a68540fde3a3877aeea552b832b40ab9a69e318efd078774a01ddee1ccf"
 dependencies = [
  "num-conv",
  "time-core",
-]
-
-[[package]]
-name = "tui-textarea"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a5318dd619ed73c52a9417ad19046724effc1287fb75cdcc4eca1d6ac1acbae"
-dependencies = [
- "crossterm",
- "ratatui",
- "unicode-width 0.2.0",
 ]
 
 [[package]]

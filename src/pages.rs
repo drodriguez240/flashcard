@@ -1,8 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::prelude::*;
-use tui_textarea::TextArea;
 
-use crate::{app::Action, database::*, markup::*, utils::*};
+use crate::{app::Action, database::*, editor::*, markup::*, utils::*};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Route {
@@ -192,21 +191,21 @@ impl Review {
 }
 
 pub struct AddCard {
-    editor: TextArea<'static>,
+    editor: TextEditor,
 }
 
 impl AddCard {
     pub fn new() -> Self {
         Self {
-            editor: TextArea::default(),
+            editor: TextEditor::new(),
         }
     }
 
-    pub fn on_enter(&mut self, db: &Database) {
+    pub fn on_enter(&mut self, _db: &Database) {
         //todo
     }
 
-    pub fn on_render(&self, area: Rect, buf: &mut Buffer) {
+    pub fn on_render(&mut self, area: Rect, buf: &mut Buffer) {
         self.editor.render(area, buf);
     }
 
@@ -217,12 +216,11 @@ impl AddCard {
                 KeyCode::Tab => return Action::Route(Route::Review),
                 KeyCode::Char('s') => {
                     if key.modifiers.contains(KeyModifiers::CONTROL) {
-                        let content = self.editor.lines().join("\n");
-                        self.editor = TextArea::default();
-                        db.add(Card::new(content));
+                        db.add(Card::new(self.editor.as_str().to_owned()));
+                        self.editor.clear();
                         return Action::Render;
                     } else {
-                        self.editor.input(key);
+                        self.editor.push_char('s');
                         return Action::Render;
                     }
                 }
@@ -230,12 +228,12 @@ impl AddCard {
                     if key.modifiers.contains(KeyModifiers::CONTROL) {
                         // todo: toggle preview
                     } else {
-                        self.editor.input(key);
+                        self.editor.push_char('p');
                         return Action::Render;
                     }
                 }
                 _ => {
-                    self.editor.input(key);
+                    self.editor.input(key.code, key.modifiers);
                     return Action::Render;
                 }
             }
@@ -244,7 +242,7 @@ impl AddCard {
         Action::None
     }
 
-    pub fn on_paste(&mut self, s: String) -> Action {
+    pub fn on_paste(&mut self, _s: String) -> Action {
         //todo
         Action::None
     }
@@ -265,23 +263,25 @@ impl AddCard {
 
 pub struct EditCard {
     card_id: CardId,
-    editor: TextArea<'static>,
+    editor: TextEditor,
 }
 
 impl EditCard {
     pub fn new() -> Self {
         Self {
             card_id: CardId::default(),
-            editor: TextArea::default(),
+            editor: TextEditor::new(),
         }
     }
 
     pub fn on_enter(&mut self, card_id: CardId, db: &Database) {
+        let card = db.get(&card_id).unwrap();
         self.card_id = card_id;
-        self.editor.insert_str(db.get(&card_id).unwrap().0.as_str());
+        self.editor.push_str(card.0.as_str());
+        self.editor.move_cursor(CursorMove::Start, false);
     }
 
-    pub fn on_render(&self, area: Rect, buf: &mut Buffer) {
+    pub fn on_render(&mut self, area: Rect, buf: &mut Buffer) {
         self.editor.render(area, buf);
     }
 
@@ -289,28 +289,27 @@ impl EditCard {
         if key.kind == KeyEventKind::Press {
             match key.code {
                 KeyCode::Esc => return Action::Quit,
+                KeyCode::Tab => return Action::Route(Route::AddCard),
                 KeyCode::Char('s') => {
                     if key.modifiers.contains(KeyModifiers::CONTROL) {
-                        // todo: save and go back
                         let card = db.get_mut(&self.card_id).unwrap();
-                        card.0 = self.editor.lines().join("\n");
-                        return Action::Route(Route::Review);
+                        card.0 = self.editor.as_str().to_owned();
+                        return Action::Route(Route::Review); // todo: go back
                     } else {
-                        self.editor.input(key);
+                        self.editor.push_char('s');
                         return Action::Render;
                     }
                 }
                 KeyCode::Char('c') => {
                     if key.modifiers.contains(KeyModifiers::CONTROL) {
-                        // todo: cancel and go back
-                        return Action::Route(Route::Review);
+                        return Action::Route(Route::Review); // todo: go back
                     } else {
-                        self.editor.input(key);
+                        self.editor.push_char('c');
                         return Action::Render;
                     }
                 }
                 _ => {
-                    self.editor.input(key);
+                    self.editor.input(key.code, key.modifiers);
                     return Action::Render;
                 }
             }
@@ -319,14 +318,13 @@ impl EditCard {
         Action::None
     }
 
-    pub fn on_paste(&mut self, s: String) -> Action {
-        //todo
+    pub fn on_paste(&mut self, _s: String) -> Action {
+        // todo?
         Action::None
     }
 
     pub fn on_exit(&mut self) {
-        self.card_id = CardId::default();
-        self.editor = TextArea::default();
+        self.editor.clear();
     }
 
     pub fn shortcuts<'a>(&'a self) -> &'a [Shortcut] {
