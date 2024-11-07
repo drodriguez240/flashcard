@@ -192,12 +192,16 @@ impl Review {
 
 pub struct AddCard {
     editor: TextEditor,
+    preview: bool,
+    scroll: usize,
 }
 
 impl AddCard {
     pub fn new() -> Self {
         Self {
             editor: TextEditor::new(),
+            preview: false,
+            scroll: 0,
         }
     }
 
@@ -206,7 +210,11 @@ impl AddCard {
     }
 
     pub fn on_render(&mut self, area: Rect, buf: &mut Buffer) {
-        self.editor.render(area, buf);
+        if self.preview {
+            Markup::new(self.editor.as_str()).render(area, buf, &mut self.scroll);
+        } else {
+            self.editor.render(area, buf);
+        }
     }
 
     pub fn on_input(&mut self, key: KeyEvent, db: &mut Database) -> Action {
@@ -218,23 +226,27 @@ impl AddCard {
                     if key.modifiers.contains(KeyModifiers::CONTROL) {
                         db.add(Card::new(self.editor.as_str().to_owned()));
                         self.editor.clear();
+                        self.preview = false;
+                        self.scroll = 0;
                         return Action::Render;
-                    } else {
+                    } else if !self.preview {
                         self.editor.push_char('s');
                         return Action::Render;
                     }
                 }
                 KeyCode::Char('p') => {
                     if key.modifiers.contains(KeyModifiers::CONTROL) {
-                        // todo: toggle preview
-                    } else {
+                        self.preview = !self.preview;
+                    } else if !self.preview {
                         self.editor.push_char('p');
-                        return Action::Render;
                     }
+                    return Action::Render;
                 }
                 _ => {
-                    self.editor.input(key.code, key.modifiers);
-                    return Action::Render;
+                    if !self.preview {
+                        self.editor.input(key.code, key.modifiers);
+                        return Action::Render;
+                    }
                 }
             }
         }
@@ -248,7 +260,8 @@ impl AddCard {
     }
 
     pub fn on_exit(&mut self) {
-        //todo
+        self.preview = false;
+        self.scroll = 0;
     }
 
     pub fn shortcuts<'a>(&'a self) -> &'a [Shortcut] {
@@ -264,6 +277,8 @@ impl AddCard {
 pub struct EditCard {
     card_id: CardId,
     editor: TextEditor,
+    preview: bool,
+    scroll: usize,
 }
 
 impl EditCard {
@@ -271,6 +286,8 @@ impl EditCard {
         Self {
             card_id: CardId::default(),
             editor: TextEditor::new(),
+            preview: false,
+            scroll: 0,
         }
     }
 
@@ -282,20 +299,23 @@ impl EditCard {
     }
 
     pub fn on_render(&mut self, area: Rect, buf: &mut Buffer) {
-        self.editor.render(area, buf);
+        if self.preview {
+            Markup::new(self.editor.as_str()).render(area, buf, &mut self.scroll);
+        } else {
+            self.editor.render(area, buf);
+        }
     }
 
     pub fn on_input(&mut self, key: KeyEvent, db: &mut Database) -> Action {
         if key.kind == KeyEventKind::Press {
             match key.code {
                 KeyCode::Esc => return Action::Quit,
-                KeyCode::Tab => return Action::Route(Route::AddCard),
                 KeyCode::Char('s') => {
                     if key.modifiers.contains(KeyModifiers::CONTROL) {
                         let card = db.get_mut(&self.card_id).unwrap();
                         card.0 = self.editor.as_str().to_owned();
                         return Action::Route(Route::Review); // todo: go back
-                    } else {
+                    } else if !self.preview {
                         self.editor.push_char('s');
                         return Action::Render;
                     }
@@ -303,14 +323,24 @@ impl EditCard {
                 KeyCode::Char('c') => {
                     if key.modifiers.contains(KeyModifiers::CONTROL) {
                         return Action::Route(Route::Review); // todo: go back
-                    } else {
+                    } else if !self.preview {
                         self.editor.push_char('c');
                         return Action::Render;
                     }
                 }
-                _ => {
-                    self.editor.input(key.code, key.modifiers);
+                KeyCode::Char('p') => {
+                    if key.modifiers.contains(KeyModifiers::CONTROL) {
+                        self.preview = !self.preview;
+                    } else if !self.preview {
+                        self.editor.push_char('p');
+                    }
                     return Action::Render;
+                }
+                _ => {
+                    if !self.preview {
+                        self.editor.input(key.code, key.modifiers);
+                        return Action::Render;
+                    }
                 }
             }
         }
@@ -325,9 +355,16 @@ impl EditCard {
 
     pub fn on_exit(&mut self) {
         self.editor.clear();
+        self.preview = false;
+        self.scroll = 0;
     }
 
     pub fn shortcuts<'a>(&'a self) -> &'a [Shortcut] {
-        &[SHORTCUT_SAVE, SHORTCUT_CANCEL, SHORTCUT_QUIT]
+        &[
+            SHORTCUT_SAVE,
+            SHORTCUT_CANCEL,
+            SHORTCUT_PREVIEW,
+            SHORTCUT_QUIT,
+        ]
     }
 }
