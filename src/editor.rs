@@ -1,7 +1,7 @@
 use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::prelude::*;
 
-use crate::utils::{STYLE_CURSOR, STYLE_NONE};
+use crate::utils::{STYLE_CURSOR, STYLE_NONE, STYLE_SELECTED};
 
 pub struct TextEditor {
     input: String,
@@ -109,8 +109,8 @@ impl TextEditor {
     }
 
     pub fn select_all(&mut self) {
-        self.cursor_index = 0;
-        self.selection_start = Some(self.input.len());
+        self.selection_start = Some(0);
+        self.cursor_index = self.input.len();
     }
 
     pub fn delete_back(&mut self) {
@@ -198,16 +198,21 @@ impl TextEditor {
     }
 
     fn delete_selection(&mut self, selection_start: usize) {
-        let start = usize::min(self.cursor_index, selection_start);
-        let end = {
-            let end = usize::max(self.cursor_index, selection_start);
-            match self.input[end..].chars().next() {
-                Some(c) => end + c.len_utf8(),
-                None => end,
+        if selection_start < self.cursor_index {
+            self.input
+                .replace_range(selection_start..self.cursor_index, "");
+            self.cursor_index = selection_start;
+        } else if self.cursor_index < selection_start {
+            if let Some(c) = self.input[self.cursor_index..].chars().next() {
+                let start = self.cursor_index + c.len_utf8();
+                let end = self.input[selection_start..]
+                    .chars()
+                    .next()
+                    .map(|c| selection_start + c.len_utf8())
+                    .unwrap_or(self.input.len());
+                self.input.replace_range(start..end, "");
             }
-        };
-        self.input.replace_range(start..end, "");
-        self.cursor_index = start;
+        }
     }
 
     fn jump_to_line(&mut self, i: usize) {
@@ -254,6 +259,7 @@ impl Widget for &mut TextEditor {
 
         let mut line_width = 0;
         let mut line_index = 0;
+        let input_len = self.input.len();
         let selection_start = self
             .cursor_index
             .min(self.selection_start.unwrap_or(self.cursor_index));
@@ -269,36 +275,31 @@ impl Widget for &mut TextEditor {
 
         loop {
             let Some((i, c)) = chars.next() else {
-                if self.cursor_index == self.input.len() {
+                if self.cursor_index == input_len {
                     self.cursor_line_index = line_index;
                     self.cursor_column = line_width;
+                    self.line_spans[line_index].push_span(Span::styled(" ", STYLE_CURSOR));
                 }
-
-                if selection_end == self.input.len() {
-                    let span = Span::styled(" ", STYLE_CURSOR);
-                    self.line_spans[line_index].push_span(span);
-                }
-
                 break;
             };
 
             let is_cursor = i == self.cursor_index;
             let is_selected = i >= selection_start && i <= selection_end;
-            let style = if is_cursor || is_selected {
+
+            let style = if is_cursor {
+                self.cursor_line_index = line_index;
+                self.cursor_column = line_width;
                 STYLE_CURSOR
+            } else if is_selected {
+                STYLE_SELECTED
             } else {
                 STYLE_NONE
             };
 
-            if is_cursor {
-                self.cursor_line_index = line_index;
-                self.cursor_column = line_width;
-            }
-
             let next_line = match c {
                 '\n' => {
-                    if is_cursor || is_selected {
-                        let span = Span::styled(" ", STYLE_CURSOR);
+                    if is_cursor || (is_selected && i < input_len) {
+                        let span = Span::styled(" ", style);
                         self.line_spans[line_index].push_span(span);
                     }
                     true
