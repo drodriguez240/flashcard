@@ -100,6 +100,12 @@ impl TextEditor {
                 self.cursor_index = self.input.len();
             }
         }
+
+        if let Some(selector) = self.selection_start {
+            if selector == self.cursor_index {
+                self.selection_start = None;
+            }
+        }
     }
 
     pub fn select_all(&mut self) {
