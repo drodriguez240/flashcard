@@ -1,4 +1,4 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::prelude::*;
 
 use crate::{app::Action, database::*, editor::*, markup::*, utils::*};
@@ -91,64 +91,63 @@ impl Review {
         }
     }
 
-    pub fn on_input(&mut self, key: KeyEvent, db: &mut Database) -> Action {
+    pub fn on_input(
+        &mut self,
+        key: KeyCode,
+        _modifiers: KeyModifiers,
+        db: &mut Database,
+    ) -> Action {
         match self.state {
             ReviewState::Review(id) => {
-                if key.kind == KeyEventKind::Press {
-                    match key.code {
-                        KeyCode::Esc => return Action::Quit,
-                        KeyCode::Tab => return Action::Route(Route::AddCard),
-                        KeyCode::Char('e') => return Action::Route(Route::EditCard(id)),
-                        KeyCode::Delete => {
-                            db.remove(&id);
-                            if let Some(next_id) = self.due.pop() {
-                                self.state = ReviewState::Review(next_id);
-                                let card = db.get(&next_id).unwrap();
-                                self.text.clear();
-                                self.text.push_str(card.0.as_str());
-                            } else {
-                                self.state = ReviewState::Done;
-                            }
-                            return Action::Render;
+                match key {
+                    KeyCode::Esc => return Action::Quit,
+                    KeyCode::Tab => return Action::Route(Route::AddCard),
+                    KeyCode::Char('e') => return Action::Route(Route::EditCard(id)),
+                    KeyCode::Delete => {
+                        db.remove(&id);
+                        if let Some(next_id) = self.due.pop() {
+                            self.state = ReviewState::Review(next_id);
+                            let card = db.get(&next_id).unwrap();
+                            self.text.clear();
+                            self.text.push_str(card.0.as_str());
+                        } else {
+                            self.state = ReviewState::Done;
                         }
-                        KeyCode::Char(' ') => {
-                            // todo: show answer
-                        }
-                        KeyCode::Up => {
-                            // todo: successful recall
-                            // fixme: activates when scrolling with touchpad?
-                            self.scroll = self.scroll.saturating_sub(1);
-                            return Action::Render;
-                        }
-                        KeyCode::Down => {
-                            // todo: unsuccessful recall
-                            // fixme: activates when scrolling with touchpad?
-                            self.scroll = self.scroll.saturating_add(1);
-                            return Action::Render;
-                        }
-                        KeyCode::Right => {
-                            if let Some(next_id) = self.due.pop() {
-                                self.due.insert(0, id);
-                                self.state = ReviewState::Review(next_id);
-                                let card = db.get(&next_id).unwrap();
-                                self.text.clear();
-                                self.text.push_str(card.0.as_str());
-                                return Action::Render;
-                            }
-                        }
-                        _ => {}
+                        return Action::Render;
                     }
+                    KeyCode::Char(' ') => {
+                        // todo: show answer
+                    }
+                    KeyCode::Up => {
+                        // todo: successful recall
+                        // fixme: activates when scrolling with touchpad?
+                        self.scroll = self.scroll.saturating_sub(1);
+                        return Action::Render;
+                    }
+                    KeyCode::Down => {
+                        // todo: unsuccessful recall
+                        // fixme: activates when scrolling with touchpad?
+                        self.scroll = self.scroll.saturating_add(1);
+                        return Action::Render;
+                    }
+                    KeyCode::Right => {
+                        if let Some(next_id) = self.due.pop() {
+                            self.due.insert(0, id);
+                            self.state = ReviewState::Review(next_id);
+                            let card = db.get(&next_id).unwrap();
+                            self.text.clear();
+                            self.text.push_str(card.0.as_str());
+                            return Action::Render;
+                        }
+                    }
+                    _ => {}
                 }
             }
-            ReviewState::None | ReviewState::Done => {
-                if key.kind == KeyEventKind::Press {
-                    match key.code {
-                        KeyCode::Esc => return Action::Quit,
-                        KeyCode::Tab => return Action::Route(Route::AddCard),
-                        _ => {}
-                    }
-                }
-            }
+            ReviewState::None | ReviewState::Done => match key {
+                KeyCode::Esc => return Action::Quit,
+                KeyCode::Tab => return Action::Route(Route::AddCard),
+                _ => {}
+            },
         }
 
         Action::None
@@ -217,45 +216,39 @@ impl AddCard {
         }
     }
 
-    pub fn on_input(&mut self, key: KeyEvent, db: &mut Database) -> Action {
-        if key.kind == KeyEventKind::Press {
-            match key.code {
-                KeyCode::Esc => return Action::Quit,
-                KeyCode::Tab => return Action::Route(Route::Review),
-                KeyCode::Char('s') => {
-                    if key.modifiers.contains(KeyModifiers::CONTROL) {
-                        db.add(Card::new(self.editor.as_str().to_owned()));
-                        self.editor.clear();
-                        self.preview = false;
-                        self.scroll = 0;
-                        return Action::Render;
-                    } else if !self.preview {
-                        self.editor.push_char('s');
-                        return Action::Render;
-                    }
-                }
-                KeyCode::Char('p') => {
-                    if key.modifiers.contains(KeyModifiers::CONTROL) {
-                        self.preview = !self.preview;
-                    } else if !self.preview {
-                        self.editor.push_char('p');
-                    }
+    pub fn on_input(&mut self, key: KeyCode, modifiers: KeyModifiers, db: &mut Database) -> Action {
+        let ctrl = modifiers.contains(KeyModifiers::CONTROL);
+        match key {
+            KeyCode::Esc => return Action::Quit,
+            KeyCode::Tab => return Action::Route(Route::Review),
+            KeyCode::Char('s') => {
+                if ctrl {
+                    db.add(Card::new(self.editor.as_str().to_owned()));
+                    self.editor.clear();
+                    self.preview = false;
+                    self.scroll = 0;
+                    return Action::Render;
+                } else if !self.preview {
+                    self.editor.push_char('s');
                     return Action::Render;
                 }
-                _ => {
-                    if !self.preview {
-                        self.editor.input(key.code, key.modifiers);
-                        return Action::Render;
-                    }
+            }
+            KeyCode::Char('p') => {
+                if ctrl {
+                    self.preview = !self.preview;
+                } else if !self.preview {
+                    self.editor.push_char('p');
+                }
+                return Action::Render;
+            }
+            _ => {
+                if !self.preview {
+                    self.editor.input(key, modifiers);
+                    return Action::Render;
                 }
             }
         }
 
-        Action::None
-    }
-
-    pub fn on_paste(&mut self, _s: String) -> Action {
-        //todo
         Action::None
     }
 
@@ -306,50 +299,44 @@ impl EditCard {
         }
     }
 
-    pub fn on_input(&mut self, key: KeyEvent, db: &mut Database) -> Action {
-        if key.kind == KeyEventKind::Press {
-            match key.code {
-                KeyCode::Esc => return Action::Quit,
-                KeyCode::Char('s') => {
-                    if key.modifiers.contains(KeyModifiers::CONTROL) {
-                        let card = db.get_mut(&self.card_id).unwrap();
-                        card.0 = self.editor.as_str().to_owned();
-                        return Action::Route(Route::Review); // todo: go back
-                    } else if !self.preview {
-                        self.editor.push_char('s');
-                        return Action::Render;
-                    }
-                }
-                KeyCode::Char('c') => {
-                    if key.modifiers.contains(KeyModifiers::CONTROL) {
-                        return Action::Route(Route::Review); // todo: go back
-                    } else if !self.preview {
-                        self.editor.push_char('c');
-                        return Action::Render;
-                    }
-                }
-                KeyCode::Char('p') => {
-                    if key.modifiers.contains(KeyModifiers::CONTROL) {
-                        self.preview = !self.preview;
-                    } else if !self.preview {
-                        self.editor.push_char('p');
-                    }
+    pub fn on_input(&mut self, key: KeyCode, modifiers: KeyModifiers, db: &mut Database) -> Action {
+        let ctrl = modifiers.contains(KeyModifiers::CONTROL);
+        match key {
+            KeyCode::Esc => return Action::Quit,
+            KeyCode::Char('s') => {
+                if ctrl {
+                    let card = db.get_mut(&self.card_id).unwrap();
+                    card.0 = self.editor.as_str().to_owned();
+                    return Action::Route(Route::Review); // todo: go back
+                } else if !self.preview {
+                    self.editor.push_char('s');
                     return Action::Render;
                 }
-                _ => {
-                    if !self.preview {
-                        self.editor.input(key.code, key.modifiers);
-                        return Action::Render;
-                    }
+            }
+            KeyCode::Char('c') => {
+                if ctrl {
+                    return Action::Route(Route::Review); // todo: go back
+                } else if !self.preview {
+                    self.editor.push_char('c');
+                    return Action::Render;
+                }
+            }
+            KeyCode::Char('p') => {
+                if ctrl {
+                    self.preview = !self.preview;
+                } else if !self.preview {
+                    self.editor.push_char('p');
+                }
+                return Action::Render;
+            }
+            _ => {
+                if !self.preview {
+                    self.editor.input(key, modifiers);
+                    return Action::Render;
                 }
             }
         }
 
-        Action::None
-    }
-
-    pub fn on_paste(&mut self, _s: String) -> Action {
-        // todo?
         Action::None
     }
 

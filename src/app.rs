@@ -1,4 +1,4 @@
-use crossterm::event::Event;
+use crossterm::event::{Event, KeyEventKind};
 use ratatui::{prelude::*, CompletedFrame, DefaultTerminal};
 
 use crate::{database::*, pages::*, utils::*};
@@ -33,16 +33,29 @@ impl App {
 
         while self.running {
             let action = match crossterm::event::read()? {
-                Event::Key(key) => match self.route {
-                    Route::Review => self.pages.review.on_input(key, &mut self.db),
-                    Route::AddCard => self.pages.add_card.on_input(key, &mut self.db),
-                    Route::EditCard(_) => self.pages.edit_card.on_input(key, &mut self.db),
-                },
-                Event::Paste(s) => match self.route {
-                    Route::AddCard => self.pages.add_card.on_paste(s),
-                    Route::EditCard(_) => self.pages.edit_card.on_paste(s),
-                    _ => Action::None,
-                },
+                Event::Key(key) => {
+                    if key.kind == KeyEventKind::Press {
+                        match self.route {
+                            Route::Review => {
+                                self.pages
+                                    .review
+                                    .on_input(key.code, key.modifiers, &mut self.db)
+                            }
+                            Route::AddCard => {
+                                self.pages
+                                    .add_card
+                                    .on_input(key.code, key.modifiers, &mut self.db)
+                            }
+                            Route::EditCard(_) => {
+                                self.pages
+                                    .edit_card
+                                    .on_input(key.code, key.modifiers, &mut self.db)
+                            }
+                        }
+                    } else {
+                        Action::None
+                    }
+                }
                 Event::Resize(_, _) => Action::Render,
                 _ => Action::None,
             };
@@ -118,13 +131,15 @@ impl App {
 
             // Footer
             let mut footer_line = Line::default();
-            footer_line.push_span("  ");
             for &Shortcut { name, key } in shortcuts {
-                footer_line.push_span(Span::styled(key, STYLE_LABEL));
-                footer_line.push_span(" ");
-                footer_line.push_span(Span::raw(name));
-                footer_line.push_span("  ");
+                footer_line.extend([
+                    Span::styled(key, STYLE_LABEL),
+                    Span::raw(" "),
+                    Span::raw(name),
+                    Span::raw("  "),
+                ]);
             }
+            footer_line.spans.pop();
             footer_line.alignment(Alignment::Center).render(footer, buf);
         })
     }
